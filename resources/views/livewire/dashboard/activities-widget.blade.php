@@ -30,6 +30,15 @@
                         @endforeach
                     </flux:select>
                 </div>
+                <div class="w-px h-4 bg-gray-300"></div>
+                <div class="flex items-center gap-3">
+                    <flux:label class="text-sm shrink-0"><small>{{ __('Periode') }}</small></flux:label>
+                    <div class="flex items-center gap-2">
+                        <flux:input type="date" size="sm" wire:model.live="periodStart" class="!w-36" />
+                        <span class="text-xs text-gray-500 dark:text-zinc-200">t/m</span>
+                        <flux:input type="date" size="sm" wire:model.live="periodEnd" class="!w-36" />
+                    </div>
+                </div>
             </div>
         </flux:callout>
     </div>

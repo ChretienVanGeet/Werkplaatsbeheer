@@ -20,6 +20,8 @@ class Index extends Component
     use HasFluxTable;
 
     public string $statusFilter = "";
+    public ?string $periodStart = null;
+    public ?string $periodEnd = null;
     public array $activityStatuses;
 
     public function mount(): void
@@ -28,6 +30,16 @@ class Index extends Component
     }
 
     public function updatedStatusFilter(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedPeriodStart(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedPeriodEnd(): void
     {
         $this->resetPage();
     }
@@ -72,6 +84,26 @@ class Index extends Component
     {
         if (!empty($this->statusFilter)) {
             $query->where('status', $this->statusFilter);
+        }
+
+        if ($this->periodStart && $this->periodEnd) {
+            $query->where(function (Builder $dateQuery): void {
+                $dateQuery->whereDate('start_date', '<=', $this->periodEnd)
+                    ->where(function (Builder $endDateQuery): void {
+                        $endDateQuery->whereDate('end_date', '>=', $this->periodStart)
+                            ->orWhereNull('end_date');
+                    });
+            });
+        } elseif ($this->periodStart) {
+            $query->where(function (Builder $dateQuery): void {
+                $dateQuery->whereDate('end_date', '>=', $this->periodStart)
+                    ->orWhere(function (Builder $openEndedQuery): void {
+                        $openEndedQuery->whereNull('end_date')
+                            ->whereDate('start_date', '>=', $this->periodStart);
+                    });
+            });
+        } elseif ($this->periodEnd) {
+            $query->whereDate('start_date', '<=', $this->periodEnd);
         }
 
         return $query;

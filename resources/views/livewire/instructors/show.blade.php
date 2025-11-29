@@ -18,11 +18,24 @@
             <flux:heading size="xs">{{ __('Resources') }}</flux:heading>
             <div class="flex flex-wrap gap-2">
                 @foreach($instructor->supportedResources as $resource)
-                    <a href="{{ route('resources.show', $resource) }}" class="inline-flex">
-                        <flux:badge size="sm" color="blue">{{ $resource->name }}</flux:badge>
-                    </a>
+                    <flux:button size="xs" :href="route('resources.show', $resource)" icon:leading="wrench-screwdriver" icon:trailing="arrow-up-right">
+                        {{ $resource->name }}
+                    </flux:button>
                 @endforeach
             </div>
+        @endif
+        <flux:separator />
+        <flux:heading size="xs">{{ __('Activities') }}</flux:heading>
+        @if(!empty($activities))
+            <div class="flex flex-wrap gap-2">
+                @foreach($activities as $activity)
+                    <flux:button size="xs" :href="route('activities.show', $activity['id'])" icon:leading="calendar" icon:trailing="arrow-up-right">
+                        {{ $activity['name'] }}
+                    </flux:button>
+                @endforeach
+            </div>
+        @else
+            <flux:text class="text-sm text-gray-500">{{ __('No active linked activities') }}</flux:text>
         @endif
         @if($instructor->groups->isNotEmpty())
             <flux:separator />

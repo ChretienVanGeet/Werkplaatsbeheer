@@ -2,84 +2,104 @@
     <div class="flex items-center justify-between">
         <div>
             <flux:heading size="lg">{{ __('Resources') }}</flux:heading>
-            <flux:text class="text-sm text-gray-500">{{ __('Activities with their assigned resources') }}</flux:text>
+            <flux:text class="text-sm text-gray-500">{{ __('Overzicht van resources met status en instructeurs') }}</flux:text>
         </div>
         <div class="flex items-center gap-3">
-            <flux:label class="text-sm shrink-0"><small>{{ __('Status') }}</small></flux:label>
-            <flux:select variant="listbox" wire:model.live="statusFilter" size="sm" class="!w-40">
-                <flux:select.option value=""><flux:badge size="sm" color="grey">{{ __('All') }}</flux:badge></flux:select.option>
-                @foreach ($activityStatuses as $activityStatus)
-                    <flux:select.option value="{{ $activityStatus->value }}" wire:key="{{ $activityStatus->value }}">
-                        <flux:badge size="sm" :color="$activityStatus->badgeColor()">{{ $activityStatus->getLabel() }}</flux:badge>
-                    </flux:select.option>
-                @endforeach
-            </flux:select>
+            <flux:input size="sm" icon="magnifying-glass" placeholder="{{ __('Search...') }}" wire:model.live.debounce.300ms="search"/>
         </div>
     </div>
 
-    <flux:table>
+    <div class="filters">
+        <flux:callout variant="secondary">
+            <div class="flex items-center gap-4">
+                <div class="flex items-center gap-2 p-1">
+                    <flux:icon name="funnel" variant="solid" class="w-4 h-4 text-gray-500 dark:text-zinc-50" />
+                    <h3 class="text-sm font-medium text-gray-700 dark:text-zinc-50">{{ __('Filters') }}</h3>
+                </div>
+                <div class="w-px h-4 bg-gray-300"></div>
+                <div class="flex items-center gap-3">
+                    <flux:label class="text-sm shrink-0"><small>{{ __('Status') }}</small></flux:label>
+                    <flux:select variant="listbox" wire:model.live="statusFilter" size="sm" class="!w-40">
+                        <flux:select.option value=""><flux:badge size="sm" color="grey">{{ __('All') }}</flux:badge></flux:select.option>
+                        @foreach ($resourceStatuses as $resourceStatus)
+                            <flux:select.option value="{{ $resourceStatus->value }}" wire:key="{{ $resourceStatus->value }}">
+                                <flux:badge size="sm" :color="$resourceStatus->badgeColor()">{{ $resourceStatus->getLabel() }}</flux:badge>
+                            </flux:select.option>
+                        @endforeach
+                    </flux:select>
+                </div>
+                <div class="w-px h-4 bg-gray-300"></div>
+                <div class="flex items-center gap-3">
+                    <flux:label class="text-sm shrink-0"><small>{{ __('Periode') }}</small></flux:label>
+                    <div class="flex items-center gap-2">
+                        <flux:input type="date" size="sm" wire:model.live="periodStart" class="!w-36" />
+                        <span class="text-xs text-gray-500 dark:text-zinc-200">t/m</span>
+                        <flux:input type="date" size="sm" wire:model.live="periodEnd" class="!w-36" />
+                    </div>
+                </div>
+            </div>
+        </flux:callout>
+    </div>
+
+    <flux:table :paginate="$resources">
         <flux:table.columns>
-            <flux:table.column>{{ __('Activity') }}</flux:table.column>
+            <flux:table.column class="w-16 whitespace-nowrap">{{ __('ID') }}</flux:table.column>
+            <flux:table.column class="text-left">{{ __('Name') }}</flux:table.column>
             <flux:table.column class="text-right">{{ __('Status') }}</flux:table.column>
-            <flux:table.column class="text-right">{{ __('Resources') }}</flux:table.column>
-            <flux:table.column class="text-right">{{ __('Actions') }}</flux:table.column>
+            <flux:table.column class="text-right">{{ __('Instructor') }}</flux:table.column>
         </flux:table.columns>
         <flux:table.rows>
-            @forelse($activities as $activity)
+            @forelse($resources as $resource)
                 <flux:table.row>
-                    <flux:table.cell class="align-top">
-                        <span class="font-semibold">{{ $activity['name'] }}</span>
+                    <flux:table.cell class="w-16 whitespace-nowrap">
+                        {{ $resource['id'] }}
                     </flux:table.cell>
-                    <flux:table.cell class="text-right align-top">
-                        <flux:badge size="sm" :color="$activity['status']->badgeColor()">{{ $activity['status']->getLabel() }}</flux:badge>
+                    <flux:table.cell class="whitespace-nowrap">
+                        <div class="flex items-center gap-2">
+                            <flux:button size="xs" :href="route('resources.show', $resource['id'])" icon:trailing="arrow-up-right">
+                                <flux:icon variant="micro" name="wrench-screwdriver" class="inline-block" />
+                                {{ $resource['name'] }}
+                            </flux:button>
+                            <flux:modal.trigger name="resource-week-modal">
+                                <flux:button size="xs" variant="ghost" icon="calendar" wire:click="showResourceSchedule({{ $resource['id'] }})">
+                                    {{ __('Week') }}
+                                </flux:button>
+                            </flux:modal.trigger>
+                        </div>
                     </flux:table.cell>
-                    <flux:table.cell class="text-right align-top">
-                        <flux:accordion>
-                            <flux:accordion.item>
-                                <flux:accordion.heading>
-                                    <div class="flex items-center justify-end gap-2">
-                                        <span class="text-xs text-gray-500">{{ count($activity['resources']) }} {{ __('resources') }}</span>
-                                    </div>
-                                </flux:accordion.heading>
-                                <flux:accordion.content>
-                                    @if(empty($activity['resources']))
-                                        <flux:text class="text-sm text-gray-500">{{ __('No resources linked') }}</flux:text>
-                                    @else
-                                        <div class="divide-y divide-gray-100 dark:divide-zinc-800">
-                                            @foreach($activity['resources'] as $resource)
-                                                <div class="flex items-center justify-between py-2 gap-2">
-                                                    <div class="flex items-center gap-2">
-                                                        <flux:icon name="rectangle-group" variant="micro" class="w-4 h-4 text-gray-400" />
-                                                        <div class="text-sm font-medium">{{ $resource['name'] }}</div>
-                                                    </div>
-                                                    <flux:modal.trigger name="resource-week-modal">
-                                                        <flux:button size="xs" variant="ghost" icon="calendar" wire:click="showResourceSchedule({{ $resource['id'] }})">
-                                                            {{ __('View week') }}
-                                                        </flux:button>
-                                                    </flux:modal.trigger>
-                                                </div>
-                                            @endforeach
-                                        </div>
-                                    @endif
-                                </flux:accordion.content>
-                            </flux:accordion.item>
-                        </flux:accordion>
+                    <flux:table.cell class="whitespace-nowrap">
+                        <div class="flex justify-start flex-wrap gap-1">
+                            @foreach($resource['statuses'] as $status)
+                                <flux:badge size="sm" :color="$status->badgeColor()">{{ $status->getLabel() }}</flux:badge>
+                            @endforeach
+                        </div>
                     </flux:table.cell>
-                    <flux:table.cell class="text-right align-top text-xs text-gray-500">
-                        {{ __('Expand') }}
+                    <flux:table.cell class="whitespace-nowrap">
+                        @if(!empty($resource['instructors']))
+                            <div class="flex justify-start flex-wrap gap-2">
+                                @foreach($resource['instructors'] as $instructor)
+                                    <flux:button size="xs" :href="route('instructors.show', $instructor['id'])" icon:trailing="arrow-up-right">
+                                        <flux:icon variant="micro" name="academic-cap" class="inline-block" />
+                                        {{ $instructor['name'] }}
+                                    </flux:button>
+                                @endforeach
+                            </div>
+                        @else
+                            <span class="text-xs text-gray-500">{{ __('No instructor') }}</span>
+                        @endif
                     </flux:table.cell>
                 </flux:table.row>
             @empty
                 <flux:table.row>
                     <flux:table.cell colspan="4">
-                        <flux:text class="text-sm text-gray-500">{{ __('No activities found.') }}</flux:text>
+                        <flux:text class="text-sm text-gray-500">{{ __('No resources found.') }}</flux:text>
                     </flux:table.cell>
                 </flux:table.row>
             @endforelse
         </flux:table.rows>
     </flux:table>
 
-    <flux:modal name="resource-week-modal">
+    <flux:modal name="resource-week-modal" flyout variant="floating">
         <div class="space-y-2 text-[9px]">
             <div class="flex items-center justify-between gap-3">
                 <flux:heading size="sm" class="text-[10px]">{{ $selectedResourceName ?: __('Resource') }}</flux:heading>
@@ -105,6 +125,9 @@
                                         <flux:text class="text-xs font-semibold">{{ $slot['start'] }}</flux:text>
                                         <div class="flex items-center gap-2 pl-3">
                                             <flux:badge size="xs" class="text-[8px]" :color="$statusEnum->badgeColor()">{{ $statusEnum->getLabel() }}</flux:badge>
+                                            @if(in_array($statusEnum, [\App\Enums\ResourceStatus::RESERVED, \App\Enums\ResourceStatus::OCCUPIED], true) && empty($slot['assignments']))
+                                                <flux:icon name="exclamation-triangle" variant="micro" class="w-3 h-3 text-rose-600" />
+                                            @endif
                                         </div>
                                     </div>
                                 @empty

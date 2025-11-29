@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Livewire\Instructors;
 
 use App\Livewire\AbstractShowModelComponentInterface;
+use App\Enums\ActivityStatus;
 use App\Models\Instructor;
 use App\Models\InstructorAssignment;
 use Illuminate\Support\Carbon;
@@ -28,11 +29,21 @@ class Show extends AbstractShowModelComponentInterface
      */
     public array $weeklySlots = [];
 
+    /**
+     * @var array<int, array{id: int, name: string}>
+     */
+    public array $activities = [];
+
     public string $weekStart;
 
     public function mount(Instructor $instructor): void
     {
-        $this->instructor = $instructor->load(['groups', 'assignments.resource', 'assignments.activity', 'supportedResources']);
+        $this->instructor = $instructor->load([
+            'groups',
+            'assignments.resource',
+            'assignments.activity',
+            'supportedResources.activities',
+        ]);
 
         $this->upcomingAssignments = $this->instructor->assignments()
             ->where('starts_at', '>=', Carbon::now()->startOfDay())
@@ -46,6 +57,15 @@ class Show extends AbstractShowModelComponentInterface
                 'start' => $assignment->starts_at->format('Y-m-d H:i'),
                 'end' => $assignment->ends_at->format('Y-m-d H:i'),
             ])
+            ->toArray();
+
+        $this->activities = $this->instructor->supportedResources
+            ->flatMap(fn ($resource) => $resource->activities)
+            ->filter(fn ($activity) => in_array($activity->status, [ActivityStatus::PREPARING, ActivityStatus::STARTED], true))
+            ->map(fn ($activity) => ['id' => $activity->id, 'name' => $activity->name])
+            ->unique('id')
+            ->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE)
+            ->values()
             ->toArray();
 
         $startOfWeek = Carbon::now()->startOfWeek()->setTime(8, 0);

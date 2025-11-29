@@ -4,28 +4,30 @@ declare(strict_types=1);
 
 namespace App\Livewire\Dashboard;
 
-use App\Enums\ActivityStatus;
 use App\Enums\ResourceStatus;
-use App\Models\Activity;
 use App\Models\Resource;
 use App\Services\ResourceScheduler;
+use App\Services\InstructorScheduler;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Carbon;
 use Illuminate\View\View;
+use Livewire\Attributes\Computed;
 use Livewire\Component;
+use Livewire\WithPagination;
 
 class ResourceActivityWidget extends Component
 {
+    use WithPagination;
+
     public string $statusFilter = '';
+    public string $search = '';
+    public ?string $periodStart = null;
+    public ?string $periodEnd = null;
 
     /**
-     * @var array<int, \App\Enums\ActivityStatus>
+     * @var array<int, \App\Enums\ResourceStatus>
      */
-    public array $activityStatuses = [];
-
-    /**
-     * @var array<int, array{id: int, name: string, status: ActivityStatus, resources: array<int, array{id: int, name: string, machine_type: string|null}>}>
-     */
-    public array $activities = [];
+    public array $resourceStatuses = [];
 
     public string $weekStart;
 
@@ -38,15 +40,32 @@ class ResourceActivityWidget extends Component
      */
     public array $resourceWeek = [];
 
+    protected string $pageName = 'resources-page';
+
     public function mount(): void
     {
         $this->weekStart = Carbon::now()->startOfWeek()->toDateString();
-        $this->loadActivities();
+        $this->resourceStatuses = ResourceStatus::list();
     }
 
     public function updatedStatusFilter(): void
     {
-        $this->loadActivities();
+        $this->resetPage($this->pageName);
+    }
+
+    public function updatedSearch(): void
+    {
+        $this->resetPage($this->pageName);
+    }
+
+    public function updatedPeriodStart(): void
+    {
+        $this->resetPage($this->pageName);
+    }
+
+    public function updatedPeriodEnd(): void
+    {
+        $this->resetPage($this->pageName);
     }
 
     public function nextWeek(): void
@@ -80,21 +99,30 @@ class ResourceActivityWidget extends Component
 
         /** @var ResourceScheduler $scheduler */
         $scheduler = app(ResourceScheduler::class);
+        /** @var InstructorScheduler $instructorScheduler */
+        $instructorScheduler = app(InstructorScheduler::class);
 
         $slots = $scheduler->generateSlots($resource, $weekStart, $weekEnd);
+        $instructorSlots = $instructorScheduler->generateScheduleForResource($resource, $weekStart, $weekEnd);
+        $instructorByStart = $instructorSlots->keyBy(fn (array $slot) => $slot['start']->toDateTimeString());
 
         $this->resourceWeek = $slots
             ->groupBy(fn (array $slot) => $slot['start']->toDateString())
-            ->map(function ($daySlots, $date) {
+            ->map(function ($daySlots, $date) use ($instructorByStart) {
                 return [
                     'date' => $date,
                     'label' => Carbon::parse($date)->isoFormat('dddd D MMM'),
-                    'slots' => $daySlots->map(fn (array $slot) => [
-                        'start' => $slot['start']->format('H:i'),
-                        'end' => $slot['end']->format('H:i'),
-                        'status' => $slot['status']->value,
-                        'activity_name' => $slot['activity_name'],
-                    ])->values()->all(),
+                    'slots' => $daySlots->map(function (array $slot) use ($instructorByStart) {
+                        $instructorSlot = $instructorByStart->get($slot['start']->toDateTimeString());
+
+                        return [
+                            'start' => $slot['start']->format('H:i'),
+                            'end' => $slot['end']->format('H:i'),
+                            'status' => $slot['status']->value,
+                            'activity_name' => $slot['activity_name'],
+                            'assignments' => $instructorSlot['assignments'] ?? [],
+                        ];
+                    })->values()->all(),
                 ];
             })
             ->values()
@@ -103,36 +131,120 @@ class ResourceActivityWidget extends Component
 
     public function render(): View
     {
-        return view('livewire.dashboard.resource-activity-widget');
+        return view('livewire.dashboard.resource-activity-widget', [
+            'resources' => $this->resources(),
+        ]);
     }
 
-    private function loadActivities(): void
+    #[Computed]
+    public function resources(): LengthAwarePaginator
     {
-        $this->activityStatuses = \App\Enums\ActivityStatus::list();
+        $periodStart = $this->periodStart ? Carbon::parse($this->periodStart)->startOfDay() : null;
+        $periodEnd = $this->periodEnd ? Carbon::parse($this->periodEnd)->endOfDay() : null;
 
-        $query = Activity::query()
-            ->whereHas('resources')
-            ->with(['resources'])
-            ->orderBy('name');
-
-        if (! empty($this->statusFilter)) {
-            $query->where('status', $this->statusFilter);
+        if (! $periodStart && ! $periodEnd) {
+            $periodStart = Carbon::now();
+            $periodEnd = Carbon::now();
+        } elseif ($periodStart && ! $periodEnd) {
+            $periodEnd = (clone $periodStart)->endOfDay();
+        } elseif ($periodEnd && ! $periodStart) {
+            $periodStart = (clone $periodEnd)->startOfDay();
         }
 
-        $this->activities = $query->get()
-            ->map(function (Activity $activity) {
+        $query = Resource::query()
+            ->with([
+                'statuses' => fn ($statusQuery) => $statusQuery
+                    ->where('starts_at', '<=', $periodEnd)
+                    ->where('ends_at', '>=', $periodStart)
+                    ->orderByDesc('starts_at'),
+                'instructorAssignments' => fn ($assignmentQuery) => $assignmentQuery
+                    ->where('starts_at', '<=', $periodEnd)
+                    ->where('ends_at', '>=', $periodStart)
+                    ->with('instructor'),
+            ])
+            ->orderBy('id');
+
+        if (! empty($this->statusFilter)) {
+            $selectedStatus = ResourceStatus::from($this->statusFilter);
+
+            $query->where(function ($resourceQuery) use ($selectedStatus, $periodStart, $periodEnd) {
+                if ($selectedStatus === ResourceStatus::AVAILABLE) {
+                    $resourceQuery->whereDoesntHave('statuses', function ($statusQuery) use ($periodStart, $periodEnd) {
+                        $statusQuery
+                            ->where('starts_at', '<=', $periodEnd)
+                            ->where('ends_at', '>=', $periodStart);
+                    });
+                } else {
+                    $resourceQuery->whereHas('statuses', function ($statusQuery) use ($selectedStatus, $periodStart, $periodEnd) {
+                        $statusQuery
+                            ->where('status', $selectedStatus->value)
+                            ->where('starts_at', '<=', $periodEnd)
+                            ->where('ends_at', '>=', $periodStart);
+                    });
+                }
+            });
+        }
+
+        if (! empty($this->search)) {
+            $searchTerm = '%' . $this->search . '%';
+            $query->where(function ($searchQuery) use ($searchTerm) {
+                $searchQuery->where('name', 'like', $searchTerm)
+                    ->orWhere('machine_type', 'like', $searchTerm)
+                    ->orWhere('description', 'like', $searchTerm);
+            });
+        }
+
+        if ($this->periodStart || $this->periodEnd) {
+            $query->where(function ($resourceQuery) use ($periodStart, $periodEnd) {
+                $resourceQuery->whereDoesntHave('statuses');
+
+                $resourceQuery->orWhereHas('statuses', function ($statusQuery) use ($periodStart, $periodEnd) {
+                    $statusQuery->where(function ($overlap) use ($periodStart, $periodEnd) {
+                        if ($periodStart && $periodEnd) {
+                            $overlap->where('starts_at', '<=', $periodEnd)
+                                ->where('ends_at', '>=', $periodStart);
+                        } elseif ($periodStart) {
+                            $overlap->where('ends_at', '>=', $periodStart);
+                        } elseif ($periodEnd) {
+                            $overlap->where('starts_at', '<=', $periodEnd);
+                        }
+                    });
+                });
+            });
+        }
+
+        return $query
+            ->paginate($this->getPageSize(), pageName: $this->pageName)
+            ->through(function (Resource $resource) {
+                $statuses = $resource->statuses
+                    ->map(fn ($status) => $status->status)
+                    ->unique()
+                    ->values()
+                    ->all();
+
+                if (empty($statuses)) {
+                    $statuses = [ResourceStatus::AVAILABLE];
+                }
+
+                $instructors = $resource->instructorAssignments
+                    ->map(function ($assignment) {
+                        $instructor = $assignment->instructor;
+
+                        return $instructor ? ['id' => $instructor->id, 'name' => $instructor->name] : null;
+                    })
+                    ->filter()
+                    ->unique('id')
+                    ->values()
+                    ->all();
+
                 return [
-                    'id' => $activity->id,
-                    'name' => $activity->name,
-                    'status' => $activity->status,
-                    'resources' => $activity->resources->map(fn (Resource $resource) => [
-                        'id' => $resource->id,
-                        'name' => $resource->name,
-                        'machine_type' => $resource->machine_type,
-                    ])->values()->all(),
+                    'id' => $resource->id,
+                    'name' => $resource->name,
+                    'statuses' => $statuses,
+                    'instructors' => $instructors,
                 ];
             })
-            ->toArray();
+            ->withQueryString();
     }
 
     private function refreshResourceSchedule(): void
@@ -140,5 +252,10 @@ class ResourceActivityWidget extends Component
         if ($this->selectedResourceId) {
             $this->showResourceSchedule($this->selectedResourceId);
         }
+    }
+
+    private function getPageSize(): int
+    {
+        return 10;
     }
 }

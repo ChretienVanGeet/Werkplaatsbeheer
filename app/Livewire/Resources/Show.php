@@ -9,6 +9,8 @@ use App\Models\Activity;
 use App\Models\Instructor;
 use App\Models\InstructorAssignment;
 use App\Models\Resource;
+use App\Models\ResourceStatus as ResourceStatusModel;
+use App\Enums\ActivityStatus;
 use App\Services\InstructorScheduler;
 use App\Services\ResourceScheduler;
 use Carbon\CarbonInterface;
@@ -38,6 +40,8 @@ class Show extends Component
     public string $rangeStart;
 
     public string $rangeEnd;
+
+    public bool $rangeChecked = false;
 
     public string $status;
 
@@ -75,6 +79,37 @@ class Show extends Component
     public array $instructorRangeSlots = [];
 
     public bool $confirmUnscheduleAll = false;
+
+    public bool $instructorRangeChecked = false;
+
+    public ?string $assignSlotStart = null;
+
+    public ?string $assignSlotEnd = null;
+
+    /**
+     * @var array<int, array{id: int, name: string, available: bool}>
+     */
+    public array $assignableInstructors = [];
+
+    public ?int $assignInstructorId = null;
+
+    /**
+     * @var array<int, array{id: int, name: string, available: bool}>
+     */
+    public array $instructorsAvailability = [];
+
+    public bool $instructorsAvailabilityChecked = false;
+
+    public ?string $activitySelectSlotStart = null;
+
+    public ?string $activitySelectSlotEnd = null;
+
+    /**
+     * @var array<int, array{id: int, name: string, status: ActivityStatus}>
+     */
+    public array $openActivities = [];
+
+    public ?int $activitySelectId = null;
 
     public function mount(Resource $resource, ResourceScheduler $scheduler, InstructorScheduler $instructorScheduler): void
     {
@@ -155,6 +190,66 @@ class Show extends Component
         Flux::toast(text: __('Status updated'), variant: 'success');
     }
 
+    public function setActivityForRange(ResourceScheduler $scheduler): void
+    {
+        $this->validate([
+            'rangeStart' => 'required|date',
+            'rangeEnd' => 'required|date|after:rangeStart',
+            'activityId' => [
+                'required',
+                'integer',
+                Rule::in($this->resource->activities->pluck('id')->all()),
+            ],
+        ]);
+
+        $rangeStart = Carbon::parse($this->rangeStart);
+        $rangeEnd = Carbon::parse($this->rangeEnd);
+
+        try {
+            $slots = $scheduler->generateSlots(
+                resource: $this->resource,
+                start: $rangeStart,
+                end: $rangeEnd,
+            );
+        } catch (ValidationException $exception) {
+            $message = collect($exception->errors())->flatten()->first();
+            Flux::toast(text: $message, variant: 'danger');
+            throw $exception;
+        }
+
+        if ($slots->isEmpty()) {
+            Flux::toast(text: __('No slots found to update activity'), variant: 'info');
+            return;
+        }
+
+        foreach ($slots as $slot) {
+            $start = $slot['start'];
+            $end = $slot['end'];
+            $statusEnum = $slot['status'];
+
+            $existing = ResourceStatusModel::where('resource_id', $this->resource->id)
+                ->where('starts_at', $start)
+                ->first();
+
+            if ($existing) {
+                $existing->update(['activity_id' => $this->activityId]);
+            } else {
+                ResourceStatusModel::create([
+                    'resource_id' => $this->resource->id,
+                    'activity_id' => $this->activityId,
+                    'status' => $statusEnum,
+                    'starts_at' => $start,
+                    'ends_at' => $end,
+                ]);
+            }
+        }
+
+        $this->resource->activities()->syncWithoutDetaching([$this->activityId]);
+
+        $this->loadWeeklySlots($scheduler, app(InstructorScheduler::class));
+        Flux::toast(text: __('Activity set for selected slots'), variant: 'success');
+    }
+
     public function scheduleInstructor(InstructorScheduler $scheduler): void
     {
         $instructor = $this->validateInstructorInput();
@@ -208,6 +303,8 @@ class Show extends Component
                 'assignments' => $slot['assignments'],
             ])
             ->all();
+
+        $this->instructorRangeChecked = true;
     }
 
     public function unscheduleInstructor(InstructorScheduler $scheduler, ResourceScheduler $resourceScheduler): void
@@ -254,6 +351,103 @@ class Show extends Component
         Flux::toast(text: __('Instructor removed from slot'), variant: 'success');
     }
 
+    public function removeActivityFromSlot(string $slotStart, ResourceScheduler $scheduler): void
+    {
+        $start = Carbon::parse($slotStart);
+        $end = (clone $start)->addHours(2);
+
+        $status = ResourceStatusModel::where('resource_id', $this->resource->id)
+            ->where('starts_at', $start)
+            ->first();
+
+        if (! $status) {
+            Flux::toast(text: __('No activity found for this slot'), variant: 'info');
+            return;
+        }
+
+        $status->update(['activity_id' => null]);
+        $this->loadWeeklySlots($scheduler, app(InstructorScheduler::class));
+        Flux::toast(text: __('Activity removed from slot'), variant: 'success');
+    }
+
+    public function openActivitySelectionModal(string $slotStart): void
+    {
+        $start = Carbon::parse($slotStart);
+        $this->activitySelectSlotStart = $start->toDateTimeString();
+        $this->activitySelectSlotEnd = $start->copy()->addHours(2)->toDateTimeString();
+
+        $this->openActivities = Activity::query()
+            ->whereIn('status', [ActivityStatus::PREPARING->value, ActivityStatus::STARTED->value])
+            ->orderBy('name')
+            ->get()
+            ->map(fn (Activity $activity) => [
+                'id' => $activity->id,
+                'name' => $activity->name,
+                'status' => $activity->status,
+            ])
+            ->toArray();
+
+        $this->activitySelectId = null;
+
+        Flux::modal('select-activity')->show();
+    }
+
+    public function assignActivityToSlot(ResourceScheduler $scheduler): void
+    {
+        $this->validate([
+            'activitySelectSlotStart' => 'required|date',
+            'activitySelectSlotEnd' => 'required|date|after:activitySelectSlotStart',
+            'activitySelectId' => [
+                'required',
+                'integer',
+                Rule::in(collect($this->openActivities)->pluck('id')->all()),
+            ],
+        ]);
+
+        $start = Carbon::parse($this->activitySelectSlotStart);
+        $end = Carbon::parse($this->activitySelectSlotEnd);
+
+        try {
+            $slot = $scheduler->generateSlots(
+                resource: $this->resource,
+                start: $start,
+                end: $end
+            )->first();
+        } catch (ValidationException $exception) {
+            $message = collect($exception->errors())->flatten()->first();
+            Flux::toast(text: $message, variant: 'danger');
+            throw $exception;
+        }
+
+        if (! $slot) {
+            Flux::toast(text: __('No slot found'), variant: 'info');
+            return;
+        }
+
+        $statusEnum = $slot['status'];
+
+        $existing = ResourceStatusModel::where('resource_id', $this->resource->id)
+            ->where('starts_at', $start)
+            ->first();
+
+        if ($existing) {
+            $existing->update(['activity_id' => $this->activitySelectId]);
+        } else {
+            ResourceStatusModel::create([
+                'resource_id' => $this->resource->id,
+                'activity_id' => $this->activitySelectId,
+                'status' => $statusEnum,
+                'starts_at' => $start,
+                'ends_at' => $end,
+            ]);
+        }
+
+        $this->resource->activities()->syncWithoutDetaching([$this->activitySelectId]);
+        $this->loadWeeklySlots($scheduler, app(InstructorScheduler::class));
+        Flux::modal('select-activity')->close();
+        Flux::toast(text: __('Activity linked to slot'), variant: 'success');
+    }
+
     public function checkAvailability(ResourceScheduler $scheduler): void
     {
         $this->validate([
@@ -298,6 +492,7 @@ class Show extends Component
             || $slots->every(fn (array $slot) => $slot['activity_id'] === $this->activityId);
 
         $this->rangeMatchesSelection = $allMatchStatus && $allMatchActivity ? true : null;
+        $this->rangeChecked = true;
     }
 
     public function toggleSlotStatus(string $slotStart, ResourceScheduler $scheduler): void
@@ -312,9 +507,21 @@ class Show extends Component
         );
 
         $currentStatus = $slots->first()['status'] ?? ResourceStatus::AVAILABLE;
+        $currentActivityId = $slots->first()['activity_id'] ?? null;
         $statuses = ResourceStatus::cases();
         $currentIndex = array_search($currentStatus, $statuses, true);
         $nextStatus = $statuses[($currentIndex + 1) % count($statuses)];
+
+        $activityId = null;
+
+        if (
+            $currentStatus === ResourceStatus::RESERVED
+            && $nextStatus === ResourceStatus::OCCUPIED
+            && $currentActivityId
+        ) {
+            // Preserve linked activity when moving from reserved to occupied.
+            $activityId = $currentActivityId;
+        }
 
         try {
             $scheduler->setStatus(
@@ -322,7 +529,7 @@ class Show extends Component
                 start: $start,
                 end: $end,
                 status: $nextStatus,
-                activityId: null,
+                activityId: $activityId,
                 forceOverride: true
             );
         } catch (ValidationException $exception) {
@@ -349,6 +556,141 @@ class Show extends Component
     public function render(): View
     {
         return view('livewire.resources.show');
+    }
+
+    public function openInstructorAvailabilityModal(InstructorScheduler $scheduler): void
+    {
+        $this->validate([
+            'instructorRangeStart' => 'required|date',
+            'instructorRangeEnd' => 'required|date|after:instructorRangeStart',
+        ]);
+
+        $start = Carbon::parse($this->instructorRangeStart);
+        $end = Carbon::parse($this->instructorRangeEnd);
+
+        $availabilityList = [];
+
+        foreach ($this->instructors as $instructorData) {
+            $instructor = Instructor::find($instructorData['id']);
+
+            if (! $instructor) {
+                continue;
+            }
+
+            try {
+                $availability = $scheduler->availability(
+                    resource: $this->resource,
+                    instructor: $instructor,
+                    start: $start,
+                    end: $end,
+                    forceOverride: $this->forceInstructorOverride,
+                );
+
+                $isAvailable = $availability->every(fn (array $slot) => $slot['available']);
+            } catch (ValidationException $exception) {
+                $message = collect($exception->errors())->flatten()->first();
+                Flux::toast(text: $message, variant: 'danger');
+                throw $exception;
+            }
+
+            $availabilityList[] = [
+                'id' => $instructor->id,
+                'name' => $instructor->name,
+                'available' => $isAvailable,
+            ];
+        }
+
+        $this->instructorsAvailability = collect($availabilityList)
+            ->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE)
+            ->values()
+            ->toArray();
+
+        $this->instructorsAvailabilityChecked = true;
+
+        Flux::modal('instructor-availability')->show();
+    }
+
+    public function openAssignInstructorModal(string $slotStart, InstructorScheduler $instructorScheduler): void
+    {
+        $start = Carbon::parse($slotStart);
+        $end = (clone $start)->addHours(2);
+
+        $this->assignSlotStart = $start->toDateTimeString();
+        $this->assignSlotEnd = $end->toDateTimeString();
+        $this->assignInstructorId = null;
+        $this->assignableInstructors = [];
+
+        foreach ($this->instructors as $instructorData) {
+            $instructor = Instructor::find($instructorData['id']);
+
+            if (! $instructor) {
+                continue;
+            }
+
+            try {
+                $availability = $instructorScheduler->availability(
+                    resource: $this->resource,
+                    instructor: $instructor,
+                    start: $start,
+                    end: $end,
+                );
+
+                $isAvailable = $availability->every(fn (array $slot) => $slot['available']);
+            } catch (ValidationException) {
+                $isAvailable = false;
+            }
+
+            $this->assignableInstructors[] = [
+                'id' => $instructor->id,
+                'name' => $instructor->name,
+                'available' => $isAvailable,
+            ];
+        }
+
+        Flux::modal('assign-instructor')->show();
+    }
+
+    public function assignInstructorToSlot(InstructorScheduler $instructorScheduler): void
+    {
+        $this->validate([
+            'assignSlotStart' => 'required|date',
+            'assignSlotEnd' => 'required|date|after:assignSlotStart',
+            'assignInstructorId' => [
+                'required',
+                'integer',
+                Rule::in(collect($this->instructors)->pluck('id')->all()),
+            ],
+        ]);
+
+        /** @var Instructor|null $instructor */
+        $instructor = Instructor::find($this->assignInstructorId);
+
+        if (! $instructor) {
+            Flux::toast(text: __('Instructor not found'), variant: 'danger');
+            return;
+        }
+
+        $start = Carbon::parse($this->assignSlotStart);
+        $end = Carbon::parse($this->assignSlotEnd);
+
+        try {
+            $instructorScheduler->schedule(
+                resource: $this->resource,
+                instructor: $instructor,
+                start: $start,
+                end: $end,
+                activityId: null,
+                forceOverride: false
+            );
+        } catch (ValidationException $exception) {
+            $message = collect($exception->errors())->flatten()->first();
+            Flux::toast(text: $message, variant: 'danger');
+            throw $exception;
+        }
+
+        $this->loadWeeklySlots(app(ResourceScheduler::class), $instructorScheduler);
+        Flux::modal('assign-instructor')->close();
+        Flux::toast(text: __('Instructor assigned'), variant: 'success');
     }
 
     private function loadWeeklySlots(ResourceScheduler $scheduler, InstructorScheduler $instructorScheduler): void
@@ -392,6 +734,7 @@ class Show extends Component
                             'start' => $slot['start']->format('H:i'),
                             'end' => $slot['end']->format('H:i'),
                             'start_raw' => $slot['start']->toDateTimeString(),
+                            'end_raw' => $slot['end']->toDateTimeString(),
                             'status' => $statusEnum->value,
                             'activity_name' => $slot['activity_name'],
                             'activity_id' => $slot['activity_id'],

@@ -22,9 +22,9 @@
             <flux:heading size="xs">{{ __('Activities') }}</flux:heading>
             <div class="flex flex-wrap gap-2">
                 @foreach($resource->activities as $activity)
-                    <a href="{{ route('activities.show', $activity) }}" class="inline-flex">
-                        <flux:badge size="sm" color="blue">{{ $activity->name }}</flux:badge>
-                    </a>
+                    <flux:button size="xs" :href="route('activities.show', $activity)" icon:leading="calendar" icon:trailing="arrow-up-right">
+                        {{ $activity->name }}
+                    </flux:button>
                 @endforeach
             </div>
         @endif
@@ -50,31 +50,93 @@
                     </div>
                     <div class="space-y-2">
                         @forelse($day['slots'] as $slot)
-                            @php $statusEnum = \App\Enums\ResourceStatus::from($slot['status']); @endphp
-                            <div class="space-y-2 rounded border border-gray-100 p-2 dark:border-zinc-800 @if($slot['uncovered']) bg-rose-50 dark:bg-rose-900/20 @endif">
+                            @php
+                                $statusEnum = \App\Enums\ResourceStatus::from($slot['status']);
+                                $slotBg = 'bg-white dark:bg-zinc-900';
+
+                                if (empty($slot['status']) || $statusEnum === \App\Enums\ResourceStatus::AVAILABLE) {
+                                    $slotBg = 'bg-gray-50/50 dark:bg-zinc-800/30';
+                                } elseif ($statusEnum === \App\Enums\ResourceStatus::MAINTENANCE || empty($slot['assignments'])) {
+                                    $slotBg = 'bg-rose-50 dark:bg-rose-900/20';
+                                } elseif ($statusEnum === \App\Enums\ResourceStatus::OCCUPIED && ! empty($slot['assignments'])) {
+                                    $slotBg = 'bg-green-50 dark:bg-green-900/20';
+                                }
+                            @endphp
+                            <div class="space-y-2 rounded border border-gray-100 p-2 dark:border-zinc-800 {{ $slotBg }}">
                                 <div class="flex items-center justify-between gap-2">
                                     <div class="text-sm font-medium">{{ $slot['start'] }} - {{ $slot['end'] }}</div>
                                     <div class="flex items-center gap-2">
                                         <flux:badge size="sm" :color="$statusEnum->badgeColor()">
                                             {{ $statusEnum->getLabel() }}
                                         </flux:badge>
-                                        <flux:badge size="sm" color="{{ $slot['total_load'] === 0 ? 'gray' : ($slot['uncovered'] ? 'rose' : 'green') }}">{{ $slot['total_load'] }}%</flux:badge>
+                                        @php
+                                            $loadColor = 'gray';
+                                            if (in_array($statusEnum, [\App\Enums\ResourceStatus::RESERVED, \App\Enums\ResourceStatus::OCCUPIED], true)) {
+                                                $loadColor = match (true) {
+                                                    $slot['total_load'] === 0 => 'rose',
+                                                    $slot['total_load'] >= 100 => 'green',
+                                                    default => 'yellow',
+                                                };
+                                            } else {
+                                                $loadColor = $slot['total_load'] === 0 ? 'gray' : ($slot['uncovered'] ? 'rose' : 'green');
+                                            }
+                                        @endphp
+                                        <flux:badge size="sm" color="{{ $loadColor }}">{{ $slot['total_load'] }}%</flux:badge>
                                         <flux:button size="xs" variant="ghost" icon="arrow-path" wire:click="toggleSlotStatus('{{ $slot['start_raw'] }}')"></flux:button>
                                     </div>
                                 </div>
                                 @if($slot['activity_name'])
-                                    <div class="text-xs text-gray-500">{{ $slot['activity_name'] }}</div>
+                                    <div class="text-xs">
+                                        @if($slot['activity_id'])
+                                            <div class="flex items-center justify-between gap-2">
+                                                <flux:button size="xs" :href="route('activities.show', $slot['activity_id'])" icon:leading="calendar" icon:trailing="arrow-up-right">
+                                                    {{ $slot['activity_name'] }}
+                                                </flux:button>
+                                                <flux:button size="xs" variant="danger" icon="trash" wire:click="removeActivityFromSlot('{{ $slot['start_raw'] }}')"></flux:button>
+                                            </div>
+                                        @else
+                                            <span class="text-gray-500">{{ $slot['activity_name'] }}</span>
+                                        @endif
+                                    </div>
+                                @elseif(in_array($statusEnum, [\App\Enums\ResourceStatus::RESERVED, \App\Enums\ResourceStatus::OCCUPIED], true))
+                                    <div class="text-xs">
+                                        <flux:modal.trigger name="select-activity">
+                                            <flux:button size="xs" variant="ghost" color="rose" icon:leading="calendar" wire:click="openActivitySelectionModal('{{ $slot['start_raw'] }}')">
+                                                {{ __('No link with activity') }}
+                                            </flux:button>
+                                        </flux:modal.trigger>
+                                    </div>
                                 @endif
-                                @if(empty($slot['assignments']) && $slot['uncovered'])
-                                    <div class="text-xs text-rose-600 dark:text-rose-200">{{ __('Not covered by an instructor') }}</div>
+                                @if(empty($slot['assignments']) && $slot['uncovered'] && in_array($statusEnum, [\App\Enums\ResourceStatus::OCCUPIED, \App\Enums\ResourceStatus::RESERVED], true))
+                                    <div class="text-xs">
+                                        <flux:modal.trigger name="assign-instructor">
+                                            <flux:button size="xs" variant="ghost" color="rose" icon:leading="academic-cap" wire:click="openAssignInstructorModal('{{ $slot['start_raw'] }}')">
+                                                {{ __('Not covered by an instructor') }}
+                                            </flux:button>
+                                        </flux:modal.trigger>
+                                    </div>
                                 @else
                                     <div class="space-y-1">
                                         @foreach($slot['assignments'] as $assignment)
                                             <div class="flex items-center justify-between text-xs">
                                                 <div class="flex flex-col gap-0.5">
-                                                    <span class="font-semibold">{{ $assignment['name'] ?? __('Instructor') }}</span>
+                                                    <div class="flex items-center gap-2">
+                                                        @if(!empty($assignment['instructor_id']))
+                                                            <flux:button size="xs" :href="route('instructors.show', $assignment['instructor_id'])" icon:leading="academic-cap" icon:trailing="arrow-up-right">
+                                                                {{ $assignment['name'] ?? __('Instructor') }}
+                                                            </flux:button>
+                                                        @else
+                                                            <span class="font-semibold">{{ $assignment['name'] ?? __('Instructor') }}</span>
+                                                        @endif
+                                                    </div>
                                                     @if($assignment['activity_name'])
-                                                        <span class="text-gray-500">{{ $assignment['activity_name'] }}</span>
+                                                        @if(!empty($assignment['activity_id']))
+                                                            <flux:button size="xs" variant="ghost" :href="route('activities.show', $assignment['activity_id'])" icon:leading="calendar" icon:trailing="arrow-up-right">
+                                                                {{ $assignment['activity_name'] }}
+                                                            </flux:button>
+                                                        @else
+                                                            <span class="text-gray-500">{{ $assignment['activity_name'] }}</span>
+                                                        @endif
                                                     @endif
                                                 </div>
                                                 <div class="flex items-center gap-2">
@@ -121,6 +183,7 @@
         <div class="flex items-center gap-3">
             <flux:button variant="primary" wire:click="saveStatus">{{ __('Save status') }}</flux:button>
             <flux:button variant="ghost" wire:click="checkAvailability">{{ __('Check status') }}</flux:button>
+            <flux:button variant="ghost" wire:click="setActivityForRange">{{ __('Set activity') }}</flux:button>
         </div>
 
         @if(!empty($rangeSlots))
@@ -141,9 +204,9 @@
                         <div class="flex items-center gap-2">
                             @if($slot['activity_name'])
                                 @if($slot['activity_id'])
-                                    <a href="{{ route('activities.show', $slot['activity_id']) }}" class="text-xs text-blue-600 hover:underline">
+                                    <flux:button size="xs" :href="route('activities.show', $slot['activity_id'])" icon:leading="calendar" icon:trailing="arrow-up-right">
                                         {{ $slot['activity_name'] }}
-                                    </a>
+                                    </flux:button>
                                 @else
                                     <span class="text-xs text-gray-500">{{ $slot['activity_name'] }}</span>
                                 @endif
@@ -153,6 +216,10 @@
                     </div>
                 @endforeach
             </div>
+        @elseif($rangeChecked)
+            <flux:separator />
+            <flux:heading size="xs" class="text-gray-600">{{ __('Result for selected range') }}</flux:heading>
+            <flux:text class="text-sm text-gray-500">{{ __('No slots found for this selection') }}</flux:text>
         @endif
     </flux:card>
 
@@ -178,7 +245,9 @@
         </div>
         <div class="flex items-center gap-3">
             <flux:button variant="primary" wire:click="scheduleInstructor">{{ __('Schedule instructor') }}</flux:button>
-            <flux:button variant="ghost" wire:click="checkInstructorStatus">{{ __('Check status') }}</flux:button>
+            <flux:modal.trigger name="instructor-availability">
+                <flux:button variant="ghost" wire:click="openInstructorAvailabilityModal">{{ __('Check instructor') }}</flux:button>
+            </flux:modal.trigger>
             <flux:button variant="danger" wire:click="unscheduleInstructor">{{ __('Unschedule') }}</flux:button>
         </div>
 
@@ -211,6 +280,10 @@
                     @endif
                 @endforeach
             </div>
+        @elseif($instructorRangeChecked)
+            <flux:separator />
+            <flux:heading size="xs" class="text-gray-600">{{ __('Instructor availability for selected range') }}</flux:heading>
+            <flux:text class="text-sm text-gray-500">{{ __('No slots found for this selection') }}</flux:text>
         @endif
     </flux:card>
 
@@ -220,4 +293,135 @@
     <div class="mb-4">
         <livewire:components.notes-panel :model="$resource" :read-only="true" />
     </div>
+
+    <flux:modal name="assign-instructor" flyout variant="floating">
+        <div class="space-y-3">
+            <flux:heading size="sm">{{ __('Assign instructor') }}</flux:heading>
+            @if($assignSlotStart)
+                <flux:text class="text-sm text-gray-600">
+                    {{ __('Slot') }}: {{ \Illuminate\Support\Carbon::parse($assignSlotStart)->format('Y-m-d H:i') }} - {{ \Illuminate\Support\Carbon::parse($assignSlotEnd)->format('H:i') }}
+                </flux:text>
+            @endif
+            @if(empty($assignableInstructors))
+                <flux:text class="text-sm text-gray-500">{{ __('No instructors available for this slot.') }}</flux:text>
+            @else
+                @php
+                    $selectedInstructor = collect($assignableInstructors)->firstWhere('id', $assignInstructorId);
+                @endphp
+                <flux:dropdown>
+                    <flux:button size="sm" variant="outline" icon="academic-cap">
+                        {{ $selectedInstructor['name'] ?? __('Select instructor') }}
+                    </flux:button>
+                    <flux:menu class="min-w-[240px]">
+                        <flux:menu.radio.group>
+                            @foreach($assignableInstructors as $instructor)
+                                <flux:menu.item
+                                    as="button"
+                                    type="button"
+                                    wire:click="$set('assignInstructorId', {{ $instructor['id'] }})"
+                                    :disabled="!$instructor['available']"
+                                >
+                                    <div class="flex items-center gap-2">
+                                        <flux:icon name="academic-cap" variant="micro" class="inline-block" />
+                                        <span class="flex-1 text-left">{{ $instructor['name'] }}</span>
+                                        @if(!$instructor['available'])
+                                            <flux:badge size="xs" color="rose">{{ __('Not available') }}</flux:badge>
+                                        @else
+                                            <flux:badge size="xs" color="green">{{ __('Available') }}</flux:badge>
+                                        @endif
+                                    </div>
+                                </flux:menu.item>
+                            @endforeach
+                        </flux:menu.radio.group>
+                    </flux:menu>
+                </flux:dropdown>
+
+                <div class="flex items-center gap-2 mt-3">
+                    <flux:button variant="primary" wire:click="assignInstructorToSlot" :disabled="!$assignInstructorId">{{ __('Assign') }}</flux:button>
+                    <flux:modal.close>
+                        <flux:button variant="filled">{{ __('Annuleren') }}</flux:button>
+                    </flux:modal.close>
+                </div>
+            @endif
+        </div>
+    </flux:modal>
+
+    <flux:modal name="instructor-availability" flyout variant="floating">
+        <div class="space-y-3">
+            <flux:heading size="sm">{{ __('Instructor availability') }}</flux:heading>
+            <flux:text class="text-sm text-gray-600">
+                {{ __('Range') }}: {{ \Illuminate\Support\Carbon::parse($instructorRangeStart)->format('Y-m-d H:i') }} - {{ \Illuminate\Support\Carbon::parse($instructorRangeEnd)->format('Y-m-d H:i') }}
+            </flux:text>
+
+            @if(empty($instructorsAvailability) && $instructorsAvailabilityChecked)
+                <flux:text class="text-sm text-gray-500">{{ __('No instructors available for this range.') }}</flux:text>
+            @else
+                <div class="space-y-2">
+                    @foreach($instructorsAvailability as $item)
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <flux:icon name="academic-cap" variant="micro" class="inline-block" />
+                                <span>{{ $item['name'] }}</span>
+                            </div>
+                            <flux:badge size="sm" :color="$item['available'] ? 'green' : 'rose'">
+                                {{ $item['available'] ? __('Available') : __('Not available') }}
+                            </flux:badge>
+                        </div>
+                    @endforeach
+                </div>
+            @endif
+
+            <flux:modal.close>
+                <flux:button variant="filled">{{ __('Close') }}</flux:button>
+            </flux:modal.close>
+        </div>
+    </flux:modal>
+
+    <flux:modal name="select-activity" flyout variant="floating">
+        <div class="space-y-3">
+            <flux:heading size="sm">{{ __('Link activity') }}</flux:heading>
+            @if($activitySelectSlotStart)
+                <flux:text class="text-sm text-gray-600">
+                    {{ __('Slot') }}: {{ \Illuminate\Support\Carbon::parse($activitySelectSlotStart)->format('Y-m-d H:i') }} - {{ \Illuminate\Support\Carbon::parse($activitySelectSlotEnd)->format('H:i') }}
+                </flux:text>
+            @endif
+
+            @if(empty($openActivities))
+                <flux:text class="text-sm text-gray-500">{{ __('No open activities available') }}</flux:text>
+            @else
+                @php
+                    $selectedActivity = collect($openActivities)->firstWhere('id', $activitySelectId);
+                @endphp
+                <flux:dropdown>
+                    <flux:button size="sm" variant="outline" icon="calendar">
+                        {{ $selectedActivity['name'] ?? __('Select activity') }}
+                    </flux:button>
+                    <flux:menu class="min-w-[240px]">
+                        <flux:menu.radio.group>
+                            @foreach($openActivities as $activity)
+                                <flux:menu.item
+                                    as="button"
+                                    type="button"
+                                    wire:click="$set('activitySelectId', {{ $activity['id'] }})"
+                                >
+                                    <div class="flex items-center gap-2">
+                                        <flux:icon name="calendar" variant="micro" class="inline-block" />
+                                        <span class="flex-1 text-left">{{ $activity['name'] }}</span>
+                                        <flux:badge size="xs" :color="$activity['status']->badgeColor()">{{ $activity['status']->getLabel() }}</flux:badge>
+                                    </div>
+                                </flux:menu.item>
+                            @endforeach
+                        </flux:menu.radio.group>
+                    </flux:menu>
+                </flux:dropdown>
+
+                <div class="flex items-center gap-2 mt-3">
+                    <flux:button variant="primary" wire:click="assignActivityToSlot" :disabled="!$activitySelectId">{{ __('Link') }}</flux:button>
+                    <flux:modal.close>
+                        <flux:button variant="filled">{{ __('Annuleren') }}</flux:button>
+                    </flux:modal.close>
+                </div>
+            @endif
+        </div>
+    </flux:modal>
 </div>
