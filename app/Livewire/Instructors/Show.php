@@ -125,7 +125,9 @@ class Show extends AbstractShowModelComponentInterface
 
                         return [
                             'resource' => $assignment->resource?->name,
+                            'resource_id' => $assignment->resource?->id,
                             'activity' => $assignment->activity?->name,
+                            'activity_id' => $assignment->activity?->id,
                             'load_percentage' => $load,
                         ];
                     })

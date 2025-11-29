@@ -27,7 +27,13 @@
                         <flux:table.cell class="whitespace-nowrap">{{ $participant->email }}</flux:table.cell>
                         <flux:table.cell class="whitespace-nowrap">{{ $participant->city }}</flux:table.cell>
                         <flux:table.cell class="whitespace-nowrap html-content">{!! $participant->comments !!}</flux:table.cell>
-                        <x-tables.action-column :model="$participant" :deleteClick="'confirmDelete('.$participant->id.')'" :editRoute="route('participants.edit', $participant)" :showRoute="route('participants.show', $participant)" />
+                        <x-tables.action-column
+                            :model="$participant"
+                            :deleteClick="'confirmDelete('.$participant->id.')'"
+                            :editRoute="route('participants.edit', $participant)"
+                            :showRoute="route('participants.show', $participant)"
+                            :noteClick="'openNotes('.$participant->id.')'"
+                        />
                     </flux:table.row>
                 @endforeach
             </flux:table.rows>
@@ -35,4 +41,30 @@
     </flux:checkbox.group>
 
     <x-modals.confirm-delete :modelName="__('Participant')" />
+    <flux:modal name="participant-notes" variant="floating" flyout>
+        <div class="space-y-3 max-w-3xl">
+            <flux:heading size="sm">{{ __('Notes') }}</flux:heading>
+            @if(empty($notesModal))
+                <flux:text class="text-sm text-gray-500">{{ __('No notes yet.') }}</flux:text>
+            @else
+                <div class="space-y-2">
+                    @foreach($notesModal as $note)
+                        <flux:card size="sm" class="p-3 space-y-2">
+                            <div class="flex items-center justify-between text-xs text-gray-600">
+                                <span>{{ $note['updated_at'] }}</span>
+                                <span>{{ $note['updater'] ?? $note['creator'] ?? '' }}</span>
+                            </div>
+                            <flux:heading size="sm">{{ $note['subject'] }}</flux:heading>
+                            <flux:text class="text-sm">{!! $note['content'] !!}</flux:text>
+                        </flux:card>
+                    @endforeach
+                </div>
+            @endif
+            <div class="flex justify-end">
+                <flux:modal.close>
+                    <flux:button variant="filled">{{ __('Close') }}</flux:button>
+                </flux:modal.close>
+            </div>
+        </div>
+    </flux:modal>
 </div>

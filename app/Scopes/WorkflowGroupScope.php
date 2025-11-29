@@ -56,6 +56,52 @@ class WorkflowGroupScope implements Scope
                         }
                     });
             })
+            // Instructors - with groups user has access to OR with no groups
+            ->orWhere(function (Builder $subQuery) use ($userGroupIds) {
+                $subQuery->where('subject_type', 'App\\Models\\Instructor')
+                    ->where(function (Builder $instructorQuery) use ($userGroupIds) {
+                        // Instructors with no groups
+                        $instructorQuery->whereIn('subject_id', function ($noGroupQuery) {
+                            $noGroupQuery->select('instructors.id')
+                                ->from('instructors')
+                                ->leftJoin('group_instructor', 'instructors.id', '=', 'group_instructor.instructor_id')
+                                ->whereNull('group_instructor.instructor_id');
+                        });
+
+                        // OR instructors with groups the user has access to
+                        if ($userGroupIds->isNotEmpty()) {
+                            $instructorQuery->orWhereIn('subject_id', function ($groupQuery) use ($userGroupIds) {
+                                $groupQuery->select('instructors.id')
+                                    ->from('instructors')
+                                    ->join('group_instructor', 'instructors.id', '=', 'group_instructor.instructor_id')
+                                    ->whereIn('group_instructor.group_id', $userGroupIds);
+                            });
+                        }
+                    });
+            })
+            // Resources - with groups user has access to OR with no groups
+            ->orWhere(function (Builder $subQuery) use ($userGroupIds) {
+                $subQuery->where('subject_type', 'App\\Models\\Resource')
+                    ->where(function (Builder $resourceQuery) use ($userGroupIds) {
+                        // Resources with no groups
+                        $resourceQuery->whereIn('subject_id', function ($noGroupQuery) {
+                            $noGroupQuery->select('resources.id')
+                                ->from('resources')
+                                ->leftJoin('group_resource', 'resources.id', '=', 'group_resource.resource_id')
+                                ->whereNull('group_resource.resource_id');
+                        });
+
+                        // OR resources with groups the user has access to
+                        if ($userGroupIds->isNotEmpty()) {
+                            $resourceQuery->orWhereIn('subject_id', function ($groupQuery) use ($userGroupIds) {
+                                $groupQuery->select('resources.id')
+                                    ->from('resources')
+                                    ->join('group_resource', 'resources.id', '=', 'group_resource.resource_id')
+                                    ->whereIn('group_resource.group_id', $userGroupIds);
+                            });
+                        }
+                    });
+            })
             // Companies - with groups user has access to OR with no groups
             ->orWhere(function (Builder $subQuery) use ($userGroupIds) {
                 $subQuery->where('subject_type', 'App\\Models\\Company')
@@ -126,6 +172,26 @@ class WorkflowGroupScope implements Scope
                             ->from('companies')
                             ->join('group_company', 'companies.id', '=', 'group_company.company_id')
                             ->where('group_company.group_id', $selectedGroupId);
+                    });
+            })
+            // Instructors - only those associated with the selected group
+            ->orWhere(function (Builder $subQuery) use ($selectedGroupId) {
+                $subQuery->where('subject_type', 'App\\Models\\Instructor')
+                    ->whereIn('subject_id', function ($groupQuery) use ($selectedGroupId) {
+                        $groupQuery->select('instructors.id')
+                            ->from('instructors')
+                            ->join('group_instructor', 'instructors.id', '=', 'group_instructor.instructor_id')
+                            ->where('group_instructor.group_id', $selectedGroupId);
+                    });
+            })
+            // Resources - only those associated with the selected group
+            ->orWhere(function (Builder $subQuery) use ($selectedGroupId) {
+                $subQuery->where('subject_type', 'App\\Models\\Resource')
+                    ->whereIn('subject_id', function ($groupQuery) use ($selectedGroupId) {
+                        $groupQuery->select('resources.id')
+                            ->from('resources')
+                            ->join('group_resource', 'resources.id', '=', 'group_resource.resource_id')
+                            ->where('group_resource.group_id', $selectedGroupId);
                     });
             })
             // Participants - only those associated with the selected group

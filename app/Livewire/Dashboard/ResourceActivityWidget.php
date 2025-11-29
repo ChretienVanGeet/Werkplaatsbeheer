@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Livewire\Dashboard;
 
 use App\Enums\ResourceStatus;
+use App\Enums\ActivityStatus;
+use App\Models\Activity;
 use App\Models\Resource;
 use App\Services\ResourceScheduler;
 use App\Services\InstructorScheduler;
@@ -23,11 +25,16 @@ class ResourceActivityWidget extends Component
     public string $search = '';
     public ?string $periodStart = null;
     public ?string $periodEnd = null;
+    public ?int $activityFilter = null;
 
     /**
      * @var array<int, \App\Enums\ResourceStatus>
      */
     public array $resourceStatuses = [];
+    /**
+     * @var array<int, array{id:int,name:string}>
+     */
+    public array $activityOptions = [];
 
     public string $weekStart;
 
@@ -46,6 +53,12 @@ class ResourceActivityWidget extends Component
     {
         $this->weekStart = Carbon::now()->startOfWeek()->toDateString();
         $this->resourceStatuses = ResourceStatus::list();
+        $this->activityOptions = Activity::query()
+            ->whereIn('status', [ActivityStatus::PREPARING, ActivityStatus::STARTED])
+            ->orderBy('name')
+            ->get(['id', 'name'])
+            ->map(fn (Activity $activity) => ['id' => $activity->id, 'name' => $activity->name])
+            ->all();
     }
 
     public function updatedStatusFilter(): void
@@ -64,6 +77,11 @@ class ResourceActivityWidget extends Component
     }
 
     public function updatedPeriodEnd(): void
+    {
+        $this->resetPage($this->pageName);
+    }
+
+    public function updatedActivityFilter(): void
     {
         $this->resetPage($this->pageName);
     }
@@ -142,44 +160,80 @@ class ResourceActivityWidget extends Component
         $periodStart = $this->periodStart ? Carbon::parse($this->periodStart)->startOfDay() : null;
         $periodEnd = $this->periodEnd ? Carbon::parse($this->periodEnd)->endOfDay() : null;
 
-        if (! $periodStart && ! $periodEnd) {
-            $periodStart = Carbon::now();
-            $periodEnd = Carbon::now();
-        } elseif ($periodStart && ! $periodEnd) {
-            $periodEnd = (clone $periodStart)->endOfDay();
-        } elseif ($periodEnd && ! $periodStart) {
-            $periodStart = (clone $periodEnd)->startOfDay();
+        $activityWindowStart = null;
+        $activityWindowEnd = null;
+        if (! empty($this->activityFilter)) {
+            $activity = Activity::find($this->activityFilter);
+            if ($activity) {
+                $activityWindowStart = $activity->start_date?->copy()->setTime(8, 0);
+                $activityWindowEnd = $activity->end_date?->copy()->setTime(22, 0);
+            }
+        }
+
+        // Combine activity window with optional period filters (period further restricts activity window)
+        $effectiveStart = $activityWindowStart ?? $periodStart;
+        $effectiveEnd = $activityWindowEnd ?? $periodEnd;
+
+        if ($activityWindowStart && $periodStart) {
+            $effectiveStart = $periodStart->greaterThan($activityWindowStart) ? $periodStart : $activityWindowStart;
+        }
+
+        if ($activityWindowEnd && $periodEnd) {
+            $effectiveEnd = $periodEnd->lessThan($activityWindowEnd) ? $periodEnd : $activityWindowEnd;
+        }
+
+        if (! $effectiveStart && ! $effectiveEnd) {
+            $effectiveStart = Carbon::now();
+            $effectiveEnd = Carbon::now();
+        } elseif ($effectiveStart && ! $effectiveEnd) {
+            $effectiveEnd = (clone $effectiveStart)->endOfDay();
+        } elseif ($effectiveEnd && ! $effectiveStart) {
+            $effectiveStart = (clone $effectiveEnd)->startOfDay();
         }
 
         $query = Resource::query()
             ->with([
                 'statuses' => fn ($statusQuery) => $statusQuery
-                    ->where('starts_at', '<=', $periodEnd)
-                    ->where('ends_at', '>=', $periodStart)
+                    ->when($this->activityFilter, fn ($q) => $q->where('activity_id', $this->activityFilter))
+                    ->where('starts_at', '<=', $effectiveEnd)
+                    ->where('ends_at', '>=', $effectiveStart)
                     ->orderByDesc('starts_at'),
                 'instructorAssignments' => fn ($assignmentQuery) => $assignmentQuery
-                    ->where('starts_at', '<=', $periodEnd)
-                    ->where('ends_at', '>=', $periodStart)
+                    ->where('starts_at', '<=', $effectiveEnd)
+                    ->where('ends_at', '>=', $effectiveStart)
                     ->with('instructor'),
             ])
             ->orderBy('id');
 
+        if (! empty($this->activityFilter)) {
+            $query->whereHas('statuses', function ($statusQuery) use ($effectiveStart, $effectiveEnd) {
+                $statusQuery
+                    ->where('activity_id', $this->activityFilter)
+                    ->when($effectiveEnd, fn ($q) => $q->where('starts_at', '<=', $effectiveEnd))
+                    ->when($effectiveStart, fn ($q) => $q->where('ends_at', '>=', $effectiveStart));
+            });
+
+            $query->with(['activities' => fn ($activityQuery) => $activityQuery
+                ->where('activities.id', $this->activityFilter)
+                ->select('activities.id', 'activities.name', 'activities.start_date', 'activities.end_date')]);
+        }
+
         if (! empty($this->statusFilter)) {
             $selectedStatus = ResourceStatus::from($this->statusFilter);
 
-            $query->where(function ($resourceQuery) use ($selectedStatus, $periodStart, $periodEnd) {
+            $query->where(function ($resourceQuery) use ($selectedStatus, $effectiveStart, $effectiveEnd) {
                 if ($selectedStatus === ResourceStatus::AVAILABLE) {
-                    $resourceQuery->whereDoesntHave('statuses', function ($statusQuery) use ($periodStart, $periodEnd) {
+                    $resourceQuery->whereDoesntHave('statuses', function ($statusQuery) use ($effectiveStart, $effectiveEnd) {
                         $statusQuery
-                            ->where('starts_at', '<=', $periodEnd)
-                            ->where('ends_at', '>=', $periodStart);
+                            ->where('starts_at', '<=', $effectiveEnd)
+                            ->where('ends_at', '>=', $effectiveStart);
                     });
                 } else {
-                    $resourceQuery->whereHas('statuses', function ($statusQuery) use ($selectedStatus, $periodStart, $periodEnd) {
+                    $resourceQuery->whereHas('statuses', function ($statusQuery) use ($selectedStatus, $effectiveStart, $effectiveEnd) {
                         $statusQuery
                             ->where('status', $selectedStatus->value)
-                            ->where('starts_at', '<=', $periodEnd)
-                            ->where('ends_at', '>=', $periodStart);
+                            ->where('starts_at', '<=', $effectiveEnd)
+                            ->where('ends_at', '>=', $effectiveStart);
                     });
                 }
             });
@@ -194,19 +248,19 @@ class ResourceActivityWidget extends Component
             });
         }
 
-        if ($this->periodStart || $this->periodEnd) {
-            $query->where(function ($resourceQuery) use ($periodStart, $periodEnd) {
+        if ($this->periodStart || $this->periodEnd || $activityWindowStart || $activityWindowEnd) {
+            $query->where(function ($resourceQuery) use ($effectiveStart, $effectiveEnd) {
                 $resourceQuery->whereDoesntHave('statuses');
 
-                $resourceQuery->orWhereHas('statuses', function ($statusQuery) use ($periodStart, $periodEnd) {
-                    $statusQuery->where(function ($overlap) use ($periodStart, $periodEnd) {
-                        if ($periodStart && $periodEnd) {
-                            $overlap->where('starts_at', '<=', $periodEnd)
-                                ->where('ends_at', '>=', $periodStart);
-                        } elseif ($periodStart) {
-                            $overlap->where('ends_at', '>=', $periodStart);
-                        } elseif ($periodEnd) {
-                            $overlap->where('starts_at', '<=', $periodEnd);
+                $resourceQuery->orWhereHas('statuses', function ($statusQuery) use ($effectiveStart, $effectiveEnd) {
+                    $statusQuery->where(function ($overlap) use ($effectiveStart, $effectiveEnd) {
+                        if ($effectiveStart && $effectiveEnd) {
+                            $overlap->where('starts_at', '<=', $effectiveEnd)
+                                ->where('ends_at', '>=', $effectiveStart);
+                        } elseif ($effectiveStart) {
+                            $overlap->where('ends_at', '>=', $effectiveStart);
+                        } elseif ($effectiveEnd) {
+                            $overlap->where('starts_at', '<=', $effectiveEnd);
                         }
                     });
                 });
@@ -237,11 +291,27 @@ class ResourceActivityWidget extends Component
                     ->values()
                     ->all();
 
+                $activityData = null;
+                if (! empty($this->activityFilter) && $resource->relationLoaded('activities')) {
+                    /** @var Activity|null $activity */
+                    $activity = $resource->activities->first();
+                    if ($activity) {
+                        $activityData = [
+                            'id' => $activity->id,
+                            'name' => $activity->name,
+                            'start' => $activity->start_date?->format('d-m-Y'),
+                            'end' => $activity->end_date?->format('d-m-Y'),
+                        ];
+                    }
+                }
+
                 return [
                     'id' => $resource->id,
                     'name' => $resource->name,
+                    'machine_type' => $resource->machine_type,
                     'statuses' => $statuses,
                     'instructors' => $instructors,
+                    'activity' => $activityData,
                 ];
             })
             ->withQueryString();

@@ -42,13 +42,13 @@
                                 <h2>{{$companyContact->name}}</h2>
                                 <small>@if($companyContact->role) {{ $companyContact->role }} @else &nbsp; @endif</small>
                                 <div class="flex flex-row items-center">
-                                    <span class="mr-2"><flux:icon.phone variant="micro" /></span><span class="mr-4 html-content">@if($companyContact->phone)<a href="tel:{{ $companyContact->phone }}">{{ $companyContact->phone }}</a>@else &nbsp; @endif</span>
+                                    <span class="mr-2"><flux:icon name="phone" variant="micro" /></span><span class="mr-4 html-content">@if($companyContact->phone)<a href="tel:{{ $companyContact->phone }}">{{ $companyContact->phone }}</a>@else &nbsp; @endif</span>
                                 </div>
                                 <div class="flex flex-row items-center">
-                                     <span class="mr-2"><flux:icon.envelope variant="micro" /></span><span class="mr-4 html-content">@if($companyContact->email)<a href="mailto:{{ $companyContact->email }}">{{ $companyContact->email }}</a> @else &nbsp; @endif</span>
+                                     <span class="mr-2"><flux:icon name="envelope" variant="micro" /></span><span class="mr-4 html-content">@if($companyContact->email)<a href="mailto:{{ $companyContact->email }}">{{ $companyContact->email }}</a> @else &nbsp; @endif</span>
                                 </div>
                                 <div class="flex flex-row items-center">
-                                    <span class="mr-2"><flux:icon.map-pin variant="micro" /></span><span class="mr-4 html-content">@if($companyContact->location) {{ $companyContact->location }} @else &nbsp; @endif</span>
+                                    <span class="mr-2"><flux:icon name="map-pin" variant="micro" /></span><span class="mr-4 html-content">@if($companyContact->location) {{ $companyContact->location }} @else &nbsp; @endif</span>
                                 </div>
                             </div>
                         </div>

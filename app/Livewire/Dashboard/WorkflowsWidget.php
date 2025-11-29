@@ -18,6 +18,9 @@ class WorkflowsWidget extends Component
     use AuthorizesRequests;
     use HasFluxTable;
 
+    public string $stepStatusFilter = '';
+    public string $objectTypeFilter = '';
+
     public function render(): View
     {
         return view('livewire.dashboard.workflows-widget');
@@ -39,6 +42,16 @@ class WorkflowsWidget extends Component
         $this->resetPage();
     }
 
+    public function updatedStepStatusFilter(): void
+    {
+        $this->resetPage($this->getPageName());
+    }
+
+    public function updatedObjectTypeFilter(): void
+    {
+        $this->resetPage($this->getPageName());
+    }
+
     protected function query(): Builder
     {
         return Workflow::query()
@@ -46,12 +59,17 @@ class WorkflowsWidget extends Component
             ->with([
                 'workflowTemplate',
                 'subject',
-                'workflowSteps',
-                'workflowSteps.workflowTemplateStep',
+                'workflowSteps' => fn ($q) => $q
+                    ->when($this->stepStatusFilter, fn ($f) => $f->where('status', $this->stepStatusFilter))
+                    ->with('workflowTemplateStep'),
             ])
             ->withCount([
                 'workflowSteps',
                 'workflowSteps as completed_steps_count' => fn ($q) => $q->where('status', WorkflowStepStatus::FINISHED->value),
-            ]);
+            ])
+            ->when($this->objectTypeFilter, fn ($q) => $q->where('subject_type', $this->objectTypeFilter))
+            ->when($this->stepStatusFilter, fn ($q) => $q->whereHas('workflowSteps', function ($w) {
+                $w->where('status', $this->stepStatusFilter);
+            }));
     }
 }

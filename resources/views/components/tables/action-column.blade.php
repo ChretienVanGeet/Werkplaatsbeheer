@@ -3,7 +3,8 @@
     'editRoute',
     'showRoute',
     'disabled' => false,
-    'model'
+    'model',
+    'noteClick' => null,
 ])
 
 <flux:table.cell class="w-28" align="end">
@@ -11,7 +12,11 @@
         @if(isset($model->notes_count) && $model->notes_count > 0 )
             <div class="flex items-center">
                 <flux:tooltip :content="$model->notes_count. ' '. __('Note(s)')" position="top">
-                    <flux:icon.newspaper class="text-gray-500" />
+                    @if($noteClick)
+                        <flux:button variant="ghost" size="xs" icon="newspaper" :wire:click="$noteClick" />
+                    @else
+                        <flux:icon name="newspaper" class="text-gray-500" />
+                    @endif
                 </flux:tooltip>
             </div>
         @endif

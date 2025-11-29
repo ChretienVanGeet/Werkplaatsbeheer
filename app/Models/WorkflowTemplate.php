@@ -31,7 +31,7 @@ class WorkflowTemplate extends Model
 
     public function workflowTemplateSteps(): HasMany
     {
-        return $this->hasMany(WorkflowTemplateStep::class);
+        return $this->hasMany(WorkflowTemplateStep::class)->orderBy('sort_order');
     }
 
     public function groups(): BelongsToMany

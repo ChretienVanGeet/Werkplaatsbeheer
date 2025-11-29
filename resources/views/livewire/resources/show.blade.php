@@ -70,15 +70,21 @@
                                             {{ $statusEnum->getLabel() }}
                                         </flux:badge>
                                         @php
+                                            $requiredLoad = $resource->instructor_capacity ?? 100;
                                             $loadColor = 'gray';
                                             if (in_array($statusEnum, [\App\Enums\ResourceStatus::RESERVED, \App\Enums\ResourceStatus::OCCUPIED], true)) {
                                                 $loadColor = match (true) {
                                                     $slot['total_load'] === 0 => 'rose',
-                                                    $slot['total_load'] >= 100 => 'green',
+                                                    $slot['total_load'] >= $requiredLoad => 'green',
                                                     default => 'yellow',
                                                 };
                                             } else {
-                                                $loadColor = $slot['total_load'] === 0 ? 'gray' : ($slot['uncovered'] ? 'rose' : 'green');
+                                                $loadColor = match (true) {
+                                                    $slot['total_load'] === 0 => 'gray',
+                                                    $slot['total_load'] >= $requiredLoad => 'green',
+                                                    $slot['uncovered'] => 'rose',
+                                                    default => 'yellow',
+                                                };
                                             }
                                         @endphp
                                         <flux:badge size="sm" color="{{ $loadColor }}">{{ $slot['total_load'] }}%</flux:badge>

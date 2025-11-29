@@ -55,7 +55,10 @@ class Workflow extends Model
 
     public function workflowSteps(): HasMany
     {
-        return $this->hasMany(WorkflowStep::class);
+        return $this->hasMany(WorkflowStep::class)->orderBy(
+            WorkflowTemplateStep::select('sort_order')
+                ->whereColumn('workflow_template_steps.id', 'workflow_steps.workflow_template_step_id')
+        );
     }
 
     public function getSubjectLinkAttribute(): ?string
@@ -64,6 +67,8 @@ class Workflow extends Model
             'App\Models\Company'     => route('companies.show', $this->subject_id),
             'App\Models\Participant' => route('participants.show', $this->subject_id),
             'App\Models\Activity'    => route('activities.show', $this->subject_id),
+            'App\Models\Resource'    => route('resources.show', $this->subject_id),
+            'App\Models\Instructor'  => route('instructors.show', $this->subject_id),
             default                  => null,
         };
     }
@@ -74,6 +79,8 @@ class Workflow extends Model
             'App\Models\Company'     => 'building-office-2',
             'App\Models\Participant' => 'user',
             'App\Models\Activity'    => 'calendar',
+            'App\Models\Resource'    => 'wrench-screwdriver',
+            'App\Models\Instructor'  => 'academic-cap',
             default                  => null,
         };
     }

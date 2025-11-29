@@ -72,14 +72,50 @@ class WorkflowsPanel extends Component
         Flux::toast(variant: 'success', text: 'The status is saved successfully.');
     }
 
+    public function toggleStatus(int $id): void
+    {
+        $step = WorkflowStep::findOrFail($id);
+        $cases = WorkflowStepStatus::cases();
+        $currentIndex = array_search($step->status, $cases, true);
+        $nextStatus = $cases[($currentIndex + 1) % count($cases)];
+
+        $step->status = $nextStatus;
+        $step->save();
+
+        Flux::toast(variant: 'success', text: __('Status updated to :status', ['status' => $nextStatus->getLabel()]));
+    }
+
     public function addSelectedWorkflow(): void
     {
-        /** @var Workflow $workflow */
-        $workflow = $this->model->workflows()->create([
-           'workflow_template_id' => $this->selectedWorkflowTemplateId,
-        ]);
+        if (! $this->selectedWorkflowTemplateId) {
+            return;
+        }
 
-        $workflowTemplateSteps = WorkflowTemplateStep::query()->where('workflow_template_id', $this->selectedWorkflowTemplateId)->get();
+        $alreadyExists = $this->model->workflows()
+            ->where('workflow_template_id', $this->selectedWorkflowTemplateId)
+            ->exists();
+
+        if ($alreadyExists) {
+            Flux::toast(variant: 'info', text: __('Workflow already attached.'));
+            $this->selectedWorkflowTemplateId = null;
+            return;
+        }
+
+        /** @var Workflow $workflow */
+        $workflow = $this->model->workflows()->firstOrCreate(
+            ['workflow_template_id' => $this->selectedWorkflowTemplateId],
+            []
+        );
+
+        $this->selectedWorkflowTemplateId = null;
+        $this->model->unsetRelation('workflows');
+
+        Flux::toast(variant: 'success', text: __('Workflow added.'));
+
+        $workflowTemplateSteps = WorkflowTemplateStep::query()
+            ->where('workflow_template_id', $this->selectedWorkflowTemplateId)
+            ->orderBy('sort_order')
+            ->get();
         $workflowTemplateSteps->each(function (WorkflowTemplateStep $workflowTemplateStep) use ($workflow) {
             $workflow->workflowSteps()->create([
                 'workflow_template_step_id' => $workflowTemplateStep->id,

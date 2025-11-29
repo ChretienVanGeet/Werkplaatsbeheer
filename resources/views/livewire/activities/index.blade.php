@@ -59,7 +59,13 @@
                         <flux:table.cell class="whitespace-nowrap">
                             <flux:badge size="sm" :color="$activity->status->badgeColor()">{{ $activity->status->getLabel() }}</flux:badge>
                         </flux:table.cell>
-                        <x-tables.action-column :model="$activity" :deleteClick="'confirmDelete('.$activity->id.')'" :editRoute="route('activities.edit', $activity)" :showRoute="route('activities.show', $activity)"/>
+                        <x-tables.action-column
+                            :model="$activity"
+                            :deleteClick="'confirmDelete('.$activity->id.')'"
+                            :editRoute="route('activities.edit', $activity)"
+                            :showRoute="route('activities.show', $activity)"
+                            :noteClick="'openNotes('.$activity->id.')'"
+                        />
                     </flux:table.row>
                 @endforeach
             </flux:table.rows>
@@ -67,4 +73,30 @@
     </flux:checkbox.group>
 
     <x-modals.confirm-delete :modelName="__('Activity')" />
+    <flux:modal name="activity-notes" variant="floating" flyout>
+        <div class="space-y-3 max-w-3xl">
+            <flux:heading size="sm">{{ __('Notes') }}</flux:heading>
+            @if(empty($notesModal))
+                <flux:text class="text-sm text-gray-500">{{ __('No notes yet.') }}</flux:text>
+            @else
+                <div class="space-y-2">
+                    @foreach($notesModal as $note)
+                        <flux:card size="sm" class="p-3 space-y-2">
+                            <div class="flex items-center justify-between text-xs text-gray-600">
+                                <span>{{ $note['updated_at'] }}</span>
+                                <span>{{ $note['updater'] ?? $note['creator'] ?? '' }}</span>
+                            </div>
+                            <flux:heading size="sm">{{ $note['subject'] }}</flux:heading>
+                            <flux:text class="text-sm">{!! $note['content'] !!}</flux:text>
+                        </flux:card>
+                    @endforeach
+                </div>
+            @endif
+            <div class="flex justify-end">
+                <flux:modal.close>
+                    <flux:button variant="filled">{{ __('Close') }}</flux:button>
+                </flux:modal.close>
+            </div>
+        </div>
+    </flux:modal>
 </div>

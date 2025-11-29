@@ -37,6 +37,18 @@
                         <flux:input type="date" size="sm" wire:model.live="periodEnd" class="!w-36" />
                     </div>
                 </div>
+                <div class="w-px h-4 bg-gray-300"></div>
+                <div class="flex items-center gap-3">
+                    <flux:label class="text-sm shrink-0"><small>{{ __('Activity') }}</small></flux:label>
+                    <flux:select variant="listbox" wire:model.live="activityFilter" size="sm" class="!w-56">
+                        <flux:select.option value="">{{ __('All') }}</flux:select.option>
+                        @foreach ($activityOptions as $activity)
+                            <flux:select.option value="{{ $activity['id'] }}">
+                                {{ $activity['name'] }}
+                            </flux:select.option>
+                        @endforeach
+                    </flux:select>
+                </div>
             </div>
         </flux:callout>
     </div>
@@ -45,6 +57,10 @@
         <flux:table.columns>
             <flux:table.column class="w-16 whitespace-nowrap">{{ __('ID') }}</flux:table.column>
             <flux:table.column class="text-left">{{ __('Name') }}</flux:table.column>
+            <flux:table.column class="text-left">{{ __('Machine type') }}</flux:table.column>
+            @if($activityFilter)
+                <flux:table.column class="text-left">{{ __('Activity') }}</flux:table.column>
+            @endif
             <flux:table.column class="text-right">{{ __('Status') }}</flux:table.column>
             <flux:table.column class="text-right">{{ __('Instructor') }}</flux:table.column>
         </flux:table.columns>
@@ -67,6 +83,25 @@
                             </flux:modal.trigger>
                         </div>
                     </flux:table.cell>
+                    <flux:table.cell class="whitespace-nowrap">
+                        {{ $resource['machine_type'] ?? __('Unknown') }}
+                    </flux:table.cell>
+                    @if($activityFilter)
+                        <flux:table.cell class="whitespace-nowrap">
+                            @if(!empty($resource['activity']))
+                                <div class="flex flex-col gap-1">
+                                    <flux:button size="xs" :href="route('activities.show', $resource['activity']['id'])" icon:leading="calendar" icon:trailing="arrow-up-right">
+                                        {{ $resource['activity']['name'] }}
+                                    </flux:button>
+                                    <span class="text-xs text-gray-500">
+                                        {{ $resource['activity']['start'] ?? '—' }} – {{ $resource['activity']['end'] ?? '—' }}
+                                    </span>
+                                </div>
+                            @else
+                                <span class="text-xs text-gray-500">{{ __('No activity') }}</span>
+                            @endif
+                        </flux:table.cell>
+                    @endif
                     <flux:table.cell class="whitespace-nowrap">
                         <div class="flex justify-start flex-wrap gap-1">
                             @foreach($resource['statuses'] as $status)
@@ -91,7 +126,7 @@
                 </flux:table.row>
             @empty
                 <flux:table.row>
-                    <flux:table.cell colspan="4">
+                    <flux:table.cell colspan="{{ $activityFilter ? 6 : 5 }}">
                         <flux:text class="text-sm text-gray-500">{{ __('No resources found.') }}</flux:text>
                     </flux:table.cell>
                 </flux:table.row>

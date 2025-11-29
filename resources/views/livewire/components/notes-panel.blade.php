@@ -63,7 +63,7 @@
                             @foreach ($note->attachments as $attachment)
                                 <div class="flex items-center justify-between p-2 rounded-md bg-gray-100">
                                     <div class="flex items-center gap-2 text-sm text-gray-700">
-                                        <flux:icon.paper-clip class="text-gray-500" />{{ $attachment->display_name ?? $attachment->original_name }}
+                                        <flux:icon name="paper-clip" class="text-gray-500" />{{ $attachment->display_name ?? $attachment->original_name }}
                                     </div>
 
                                     <div class="flex items-center gap-1 ml-2">
@@ -115,7 +115,7 @@
                             @foreach($editingNote->attachments as $file)
                                 <div class="flex flex-col sm:flex-row sm:items-center gap-2 p-3 rounded-lg border border-zinc-200 dark:border-zinc-700">
                                     <div class="flex items-center gap-2 min-w-0 sm:flex-1">
-                                        <flux:icon.document class="w-5 h-5 text-zinc-500 shrink-0" />
+                                        <flux:icon name="document" class="w-5 h-5 text-zinc-500 shrink-0" />
                                         <span class="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">{{ $file->original_name }}</span>
                                     </div>
                                     <flux:input size="sm" type="text" placeholder="{{ __('Display name (optional)') }}" wire:model.defer="editingNotesAttachmentNames.{{ $file->id }}" class="sm:max-w-xs custom-placeholder" />
@@ -136,7 +136,7 @@
                             @foreach($files as $i => $file)
                                 <div class="flex flex-col sm:flex-row sm:items-center gap-2 p-3 rounded-lg border border-zinc-200 dark:border-zinc-700">
                                     <div class="flex items-center gap-2 min-w-0 sm:flex-1">
-                                        <flux:icon.document class="w-5 h-5 text-zinc-500 shrink-0" />
+                                        <flux:icon name="document" class="w-5 h-5 text-zinc-500 shrink-0" />
                                         <span class="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">{{ $file->getClientOriginalName() }}</span>
                                     </div>
                                     <flux:input size="sm" type="text" placeholder="{{ __('Display name (optional)') }}" wire:model.defer="fileDisplayNames.{{ $i }}" class="sm:max-w-xs custom-placeholder" />
@@ -155,7 +155,7 @@
                         <div wire:key="file-wrapper-{{ $editingNote?->id ?? 'new' }}" class="file-upload-validation">
                             <label class="flex flex-col items-center justify-center w-full p-6 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                                 <div class="flex flex-col items-center justify-center gap-2 text-center">
-                                    <flux:icon.cloud-arrow-up class="w-8 h-8 text-gray-400" />
+                                    <flux:icon name="cloud-arrow-up" class="w-8 h-8 text-gray-400" />
                                     <div>
                                         <p class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Drop files here or click to browse') }}</p>
                                         <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ __('Allowed files: PDF, Word, Excel, PowerPoint, images, text, archives. Max size: 5MB per file.') }}</p>

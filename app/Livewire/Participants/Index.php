@@ -18,6 +18,12 @@ class Index extends Component
     use AuthorizesRequests;
     use HasFluxTable;
 
+    public ?int $notesParticipantId = null;
+    /**
+     * @var array<int, array{id:int,subject:string,content:string,updated_at:string,creator:?string,updater:?string}>
+     */
+    public array $notesModal = [];
+
     public ?int $deleteSelection = null;
     public function confirmDelete(int $id): void
     {
@@ -31,6 +37,27 @@ class Index extends Component
         $this->deleteSelection = null;
 
         Flux::modal('confirm-delete')->close();
+    }
+
+    public function openNotes(int $participantId): void
+    {
+        $participant = Participant::query()
+            ->with(['notes' => fn ($q) => $q->latest('updated_at'), 'notes.creator', 'notes.updater'])
+            ->findOrFail($participantId);
+
+        $this->notesParticipantId = $participantId;
+        $this->notesModal = $participant->notes->map(function ($note) {
+            return [
+                'id' => $note->id,
+                'subject' => $note->subject,
+                'content' => $note->content,
+                'updated_at' => $note->updated_at?->format('d-m-Y H:i'),
+                'creator' => $note->creator?->name,
+                'updater' => $note->updater?->name,
+            ];
+        })->all();
+
+        Flux::modal('participant-notes')->show();
     }
 
     #[On('group-filter-updated')]

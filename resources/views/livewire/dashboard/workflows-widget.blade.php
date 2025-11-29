@@ -5,6 +5,49 @@
             <flux:input size="sm" icon="magnifying-glass" placeholder="{{ __('Search...') }}" wire:model.live.debounce.300ms="search"/>
         </div>
     </div>
+
+    <div class="filters">
+        <flux:callout variant="secondary">
+            <div class="flex items-center gap-4">
+                <div class="flex items-center gap-2 p-1">
+                    <flux:icon name="funnel" variant="solid" class="w-4 h-4 text-gray-500 dark:text-zinc-50" />
+                    <h3 class="text-sm font-medium text-gray-700 dark:text-zinc-50">{{ __('Filters') }}</h3>
+                </div>
+                <div class="w-px h-4 bg-gray-300"></div>
+                <div class="flex items-center gap-3">
+                    <flux:label class="text-sm shrink-0"><small>{{ __('Status') }}</small></flux:label>
+                    <flux:select variant="listbox" wire:model.live="stepStatusFilter" size="sm" class="!w-40">
+                        <flux:select.option value=""><flux:badge size="sm" color="grey">{{ __('All') }}</flux:badge></flux:select.option>
+                        @foreach (\App\Enums\WorkflowStepStatus::cases() as $status)
+                            <flux:select.option value="{{ $status->value }}" wire:key="{{ $status->value }}">
+                                <flux:badge size="sm" :color="$status->badgeColor()">{{ $status->getLabel() }}</flux:badge>
+                            </flux:select.option>
+                        @endforeach
+                    </flux:select>
+                </div>
+                <div class="w-px h-4 bg-gray-300"></div>
+                <div class="flex items-center gap-3">
+                    <flux:label class="text-sm shrink-0"><small>{{ __('Object type') }}</small></flux:label>
+                    @php
+                        $objectTypes = [
+                            '' => __('All'),
+                            'App\\Models\\Activity' => __('Activity'),
+                            'App\\Models\\Company' => __('Company'),
+                            'App\\Models\\Participant' => __('Participant'),
+                            'App\\Models\\Resource' => __('Resource'),
+                            'App\\Models\\Instructor' => __('Instructor'),
+                        ];
+                    @endphp
+                    <flux:select variant="listbox" wire:model.live="objectTypeFilter" size="sm" class="!w-44">
+                        @foreach($objectTypes as $value => $label)
+                            <flux:select.option value="{{ $value }}">{{ $label }}</flux:select.option>
+                        @endforeach
+                    </flux:select>
+                </div>
+            </div>
+        </flux:callout>
+    </div>
+
     <flux:separator class="mt-2 mb-4"/>
 
     <flux:table :paginate="$this->rows">
@@ -18,7 +61,31 @@
                 <flux:table.row :key="$workflow->id">
                     <flux:table.cell class="whitespace-nowrap align-top">{{ $workflow->id }}</flux:table.cell>
                     <flux:table.cell class="whitespace-nowrap align-top">
-                        <flux:button size="xs" :href="$workflow->subjectLink" icon:trailing="arrow-up-right"><flux:icon variant="micro" name="{{ $workflow->subjectIconName }}" class="inline-block" />{{ $workflow->subject?->name }}</flux:button>
+                        @php
+                            $iconName = match ($workflow->subject_type) {
+                                'App\\Models\\Company'     => 'building-office-2',
+                                'App\\Models\\Participant' => 'user',
+                                'App\\Models\\Activity'    => 'calendar',
+                                'App\\Models\\Resource'    => 'wrench-screwdriver',
+                                'App\\Models\\Instructor'  => 'academic-cap',
+                                default                   => 'question-mark-circle',
+                            };
+                        @endphp
+                        @if($workflow->subjectLink)
+                            <flux:button size="xs" :href="$workflow->subjectLink" icon:trailing="arrow-up-right">
+                                @if($iconName)
+                                    <flux:icon variant="micro" name="{{ $iconName }}" class="inline-block" />
+                                @endif
+                                {{ $workflow->subject?->name }}
+                            </flux:button>
+                        @else
+                            <span class="text-sm text-gray-600 flex items-center gap-1">
+                                @if($iconName)
+                                    <flux:icon variant="micro" name="{{ $iconName }}" class="inline-block" />
+                                @endif
+                                {{ $workflow->subject?->name ?? __('Unknown') }}
+                            </span>
+                        @endif
                     </flux:table.cell>
                     <flux:table.cell class="whitespace-nowrap">
                             <flux:accordion class="px-4">

@@ -44,31 +44,37 @@
                                                     </flux:table.cell>
                                                     <flux:table.cell align="end" class="flex justify-end">
                                                         @if($readOnly)
-                                                            <flux:badge size="sm" :color="$workflowStep->status->badgeColor()">
-                                                                {{ $workflowStep->status->getLabel() }}
-                                                            </flux:badge>
+                                                            <div class="flex items-center gap-2">
+                                                                <flux:badge size="sm" :color="$workflowStep->status->badgeColor()">
+                                                                    {{ $workflowStep->status->getLabel() }}
+                                                                </flux:badge>
+                                                                <flux:button size="xs" variant="ghost" icon="arrow-path" wire:click="toggleStatus({{ $workflowStep->id }})" :tooltip="__('Toggle status')" />
+                                                            </div>
                                                         @else
-                                                            <flux:select
-                                                                class="max-w-36"
-                                                                wire:change="updateStatus({{ $workflowStep->id }}, $event.target.value)"
-                                                                variant="listbox"
-                                                                :placeholder="__('Select status')"
-                                                                wire:key="select-{{ $workflowStep->id }}"
-                                                            >
-                                                                @foreach (\App\Enums\WorkflowStepStatus::cases() as $case)
-                                                                    <flux:select.option
-                                                                        size="sm"
-                                                                        :value="$case->value"
-                                                                        :selected="$workflowStep->status->value === $case->value"
-                                                                    >
-                                                                        <div class="flex items-center gap-2">
-                                                                            <flux:badge size="sm" :color="$case->badgeColor()">
-                                                                                {{ $case->getLabel() }}
-                                                                            </flux:badge>
-                                                                        </div>
-                                                                    </flux:select.option>
-                                                                @endforeach
-                                                            </flux:select>
+                                                            <div class="flex items-center gap-2">
+                                                                <flux:select
+                                                                    class="max-w-36"
+                                                                    wire:change="updateStatus({{ $workflowStep->id }}, $event.target.value)"
+                                                                    variant="listbox"
+                                                                    :placeholder="__('Select status')"
+                                                                    wire:key="select-{{ $workflowStep->id }}"
+                                                                >
+                                                                    @foreach (\App\Enums\WorkflowStepStatus::cases() as $case)
+                                                                        <flux:select.option
+                                                                            size="sm"
+                                                                            :value="$case->value"
+                                                                            :selected="$workflowStep->status->value === $case->value"
+                                                                        >
+                                                                            <div class="flex items-center gap-2">
+                                                                                <flux:badge size="sm" :color="$case->badgeColor()">
+                                                                                    {{ $case->getLabel() }}
+                                                                                </flux:badge>
+                                                                            </div>
+                                                                        </flux:select.option>
+                                                                    @endforeach
+                                                                </flux:select>
+                                                                <flux:button size="xs" variant="ghost" icon="arrow-path" wire:click="toggleStatus({{ $workflowStep->id }})" :tooltip="__('Toggle status')" />
+                                                            </div>
                                                         @endif
                                                     </flux:table.cell>
                                                 </flux:table.row>
