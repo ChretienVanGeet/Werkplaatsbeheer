@@ -35,6 +35,8 @@ class Index extends Component
 //            ],
 //        ],
         [
+            'id'         => 'activities',
+            'label'      => 'Activities',
             'component'  => ActivitiesWidget::class,
             'card-style' => 'col-span-2',
             'params'     => [
@@ -43,11 +45,15 @@ class Index extends Component
             ],
         ],
         [
+            'id'         => 'workflows',
+            'label'      => 'Workflows',
             'component'  => WorkflowsWidget::class,
             'card-style' => 'col-span-2',
             'params'     => [],
         ],
         [
+            'id'         => 'resources',
+            'label'      => 'Resources',
             'component'  => ResourceActivityWidget::class,
             'card-style' => 'col-span-2',
             'params'     => [],
