@@ -1,0 +1,84 @@
+image: cimg/php:8.3
+
+definitions:
+  steps:
+    - step: &test
+        #        size: 2x
+        name: Run Tests
+        script:
+          - sudo apt-get update
+          - sudo apt-get install -y mariadb-client libxslt-dev php-xsl
+          - sudo pecl install pcov
+          - sudo -E install-php-extensions xsl
+          - composer install --no-interaction --no-progress --ansi
+          # Install Node.js (20 LTS) for Vite
+          - curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+          - sudo apt-get install -y nodejs
+          # Build front-end (creates public/build/manifest.json)
+          - npm ci
+          - npm run build
+          - vendor/bin/grumphp run --tasks=phpparser
+          - ln -f -s .env.pipelines .env
+          - php artisan migrate --seed
+          - php artisan test --parallel --recreate-databases
+          - php artisan config:cache
+          - php artisan route:cache
+        services:
+          - mysql
+        caches:
+          - composer
+  services:
+    mysql:
+      image: mysql:8.0.27
+      environment:
+        MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
+        MYSQL_DATABASE: 'laravel'
+
+
+pipelines:
+  pull-requests:
+    '**':
+      - step: *test
+  branches:
+    master:
+      - step: *test
+      - step:
+          name: Deploy Staging
+          deployment: staging
+          trigger: manual
+          script:
+            - bin/dep deploy stage=staging -n --branch="$BITBUCKET_BRANCH" --revision="$BITBUCKET_COMMIT"
+#      - step:
+#          name: Deploy Production
+#          deployment: production
+#          trigger: manual
+#          script:
+#            - bin/dep deploy stage=production -n --branch="$BITBUCKET_BRANCH" --revision="$BITBUCKET_COMMIT"
+  custom:
+    audit:
+      - step:
+          name: Composer audit
+          script:
+            - composer audit --locked
+    deploy-staging:
+      - step:
+          name: Deploy Staging
+          deployment: staging
+          script:
+            - bin/dep deploy stage=staging -n --branch="$BITBUCKET_BRANCH" --revision="$BITBUCKET_COMMIT"
+#    deploy-production:
+#      - step:
+#          name: Deploy Production
+#          deployment: production
+#          script:
+#            - bin/dep deploy stage=production -n --branch="$BITBUCKET_BRANCH" --revision="$BITBUCKET_COMMIT"
+    unlock-staging:
+      - step:
+          name: Unlock Staging
+          script:
+            - bin/dep deploy:unlock stage=staging -n -v
+#    unlock-production:
+#      - step:
+#          name: Unlock Production
+#          script:
+#            - bin/dep deploy:unlock stage=production -n -v

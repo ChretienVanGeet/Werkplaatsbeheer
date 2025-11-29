@@ -1,0 +1,187 @@
+@import 'tailwindcss';
+@import '../../vendor/livewire/flux/dist/flux.css';
+
+@source '../views';
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../vendor/livewire/flux-pro/stubs/**/*.blade.php';
+@source '../../vendor/livewire/flux/stubs/**/*.blade.php';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+
+    --color-techtrack-blue-50: #f0f3ff;
+    --color-techtrack-blue-100: #dce5fe;
+    --color-techtrack-blue-200: #b8ccfe;
+    --color-techtrack-blue-300: #90b3fd;
+    --color-techtrack-blue-400: #619afd;
+    --color-techtrack-blue-500: #1583f6;
+    --color-techtrack-blue-600: #106cce;
+    --color-techtrack-blue-700: #0a56a6;
+    --color-techtrack-blue-800: #064181;
+    --color-techtrack-blue-900: #032e5e;
+    --color-techtrack-blue-950: #011b3c;
+
+    --color-techtrack-pink-50: #ffecf3;
+    --color-techtrack-pink-100: #ffd8e7;
+    --color-techtrack-pink-200: #feb0d1;
+    --color-techtrack-pink-300: #fe82bd;
+    --color-techtrack-pink-400: #fe44aa;
+    --color-techtrack-pink-500: #e10990;
+    --color-techtrack-pink-600: #b60673;
+    --color-techtrack-pink-700: #8b0357;
+    --color-techtrack-pink-800: #63013c;
+    --color-techtrack-pink-900: #3d0124;
+    --color-techtrack-pink-950: #2a0017;
+
+    --color-techtrack-purple-50: #f3f3ff;
+    --color-techtrack-purple-100: #e9e9fe;
+    --color-techtrack-purple-200: #d6d7fe;
+    --color-techtrack-purple-300: #b6b5fd;
+    --color-techtrack-purple-400: #918cf9;
+    --color-techtrack-purple-500: #6c5df5;
+    --color-techtrack-purple-600: #583bec;
+    --color-techtrack-purple-700: #4a29d8;
+    --color-techtrack-purple-800: #3d22b5;
+    --color-techtrack-purple-900: #341e94;
+    --color-techtrack-purple-950: #20126e; /*Logo color*/
+
+    --color-techtrack-green-50: #ecfdf6;
+    --color-techtrack-green-100: #d1fae8;
+    --color-techtrack-green-200: #a7f3d5;
+    --color-techtrack-green-300: #6ee7bf;
+    --color-techtrack-green-400: #47d7ac; /*Logo color*/
+    --color-techtrack-green-500: #10b98c;
+    --color-techtrack-green-600: #059673;
+    --color-techtrack-green-700: #04785f;
+    --color-techtrack-green-800: #065f4c;
+    --color-techtrack-green-900: #064e40;
+    --color-techtrack-green-950: #022c25;
+
+    --color-zinc-50: var(--color-techtrack-purple-50);
+    --color-zinc-100: var(--color-techtrack-purple-100);
+    --color-zinc-200: var(--color-techtrack-purple-200);
+    --color-zinc-300: var(--color-techtrack-purple-300);
+    --color-zinc-400: var(--color-techtrack-purple-900);
+    --color-zinc-500: var(--color-techtrack-purple-950);
+    --color-zinc-600: var(--color-techtrack-purple-600);
+    --color-zinc-700: var(--color-techtrack-purple-700);
+    --color-zinc-800: var(--color-techtrack-purple-900);
+    --color-zinc-900: var(--color-techtrack-purple-900);
+    --color-zinc-950: var(--color-techtrack-purple-950);
+
+    --color-neutral-950: var(--color-techtrack-purple-950);
+    --color-neutral-900: var(--color-techtrack-purple-900);
+
+    --color-accent: var(--color-neutral-800);
+    --color-accent-content: var(--color-neutral-800);
+    --color-accent-foreground: var(--color-white);
+}
+
+@layer theme {
+    .dark {
+        --color-accent: var(--color-white);
+        --color-accent-content: var(--color-white);
+        --color-accent-foreground: var(--color-neutral-800);
+        --color-zinc-400: var(--color-techtrack-purple-200);
+        --color-zinc-300: var(--color-techtrack-purple-100);
+        --color-zinc-600: var(--color-techtrack-purple-900);
+        --color-zinc-700: var(--color-techtrack-purple-950);
+    }
+}
+
+@layer base {
+
+    *,
+    ::after,
+    ::before,
+    ::backdrop,
+    ::file-selector-button {
+        border-color: var(--color-gray-200, currentColor);
+    }
+}
+
+[data-flux-field]:not(ui-radio, ui-checkbox) {
+    @apply grid gap-2;
+}
+
+[data-flux-label] {
+    @apply  !mb-0 !leading-tight;
+}
+
+input:focus[data-flux-control],
+textarea:focus[data-flux-control],
+select:focus[data-flux-control] {
+    @apply outline-hidden ring-2 ring-accent ring-offset-2 ring-offset-accent-foreground;
+}
+
+/* \[:where(&)\]:size-4 {
+    @apply size-4;
+} */
+.draggable-mirror {
+    width: 100% !important;
+    max-width: calc(100% - 3.5rem);
+    pointer-events: none;
+    z-index: 50;
+    opacity: 0.9;
+    transform: scale(1.02);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+}
+
+/* Match responsive column width (based on Tailwind grid) */
+@media (min-width: 768px) {
+    .draggable-mirror {
+        max-width: calc(50% - 3.5rem); /* For md:grid-cols-2 with gap-4 */
+    }
+}
+
+@media (min-width: 1280px) {
+    .draggable-mirror {
+        max-width: calc(33.333% - 8rem); /* For xl:grid-cols-3 with gap-4 */
+    }
+}
+
+.progress-bar-wrapper {
+    position: relative;
+    background-color: #e5e7eb;
+    height: 16px;
+    width: 100%;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.progress-bar {
+    text-align: center;
+    height: 100%;
+    background-color: #10b981; /* green-500 */
+    width: var(--progress, 0%);
+    transition: width 0.6s ease-in-out;
+    border-radius: 4px;
+}
+
+.progress-label {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 0.75rem; /* same as Tailwind text-sm */
+    font-weight: 500;
+    color: #000;
+    pointer-events: none;
+}
+
+.html-content a {
+    text-decoration: underline;
+}
+
+/* Custom placeholder styling for notes panel file inputs */
+.custom-placeholder input::placeholder {
+    color: #9ca3af !important;
+    opacity: 0.6 !important;
+}
+
+.dark .custom-placeholder input::placeholder {
+    color: #9ca3af !important;
+    opacity: 0.5 !important;
+}

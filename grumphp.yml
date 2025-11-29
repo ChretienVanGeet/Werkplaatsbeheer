@@ -1,0 +1,28 @@
+grumphp:
+  hooks_dir: ~
+  process_timeout: 90
+  fixer:
+    enabled: true
+    fix_by_default: true
+  tasks:
+    phpcsfixer:
+      allow_risky: ~
+      cache_file: 'bootstrap/cache/php-cs-fixer.cache'
+      config: '.php-cs-fixer.php'
+      using_cache: ~
+      config_contains_finder: false
+      verbose: true
+      diff: false
+      triggered_by: ['php']
+    phpparser:
+      ignore_patterns: [ '_ide_helper.php' ]
+      visitors:
+        no_exit_statements: ~
+        forbidden_function_calls:
+          blacklist: [ 'var_dump', 'print_r', 'dump', 'dd', 'debug' ]
+    phpstan:
+      ignore_patterns: [ '_ide_helper.php' ]
+      configuration: 'phpstan.neon'
+      triggered_by: [ 'php' ]
+      memory_limit: "-1"
+      use_grumphp_paths: false

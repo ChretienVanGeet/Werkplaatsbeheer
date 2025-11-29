@@ -1,0 +1,19 @@
+{
+  "resources/css/app.css": {
+    "file": "assets/app-BWjz4rm7.css",
+    "src": "resources/css/app.css",
+    "isEntry": true
+  },
+  "resources/js/app.js": {
+    "file": "assets/app-MxCkR_yt.js",
+    "name": "app",
+    "src": "resources/js/app.js",
+    "isEntry": true
+  },
+  "resources/js/file-upload-validation.js": {
+    "file": "assets/file-upload-validation-0E9jehO7.js",
+    "name": "file-upload-validation",
+    "src": "resources/js/file-upload-validation.js",
+    "isEntry": true
+  }
+}

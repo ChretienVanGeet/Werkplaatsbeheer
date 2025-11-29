@@ -1,0 +1,20 @@
+{
+    "mcpServers": {
+        "laravel-boost": {
+            "command": "/Users/wsmits/Library/Application Support/Herd/bin/php83",
+            "args": [
+                "/Users/wsmits/Sites/summa-techtrack/artisan",
+                "boost:mcp"
+            ]
+        },
+        "herd": {
+            "command": "/Users/wsmits/Library/Application Support/Herd/bin/php83",
+            "args": [
+                "/Applications/Herd.app/Contents/Resources/herd-mcp.phar"
+            ],
+            "env": {
+                "SITE_PATH": "/Users/wsmits/Sites/summa-techtrack"
+            }
+        }
+    }
+}
