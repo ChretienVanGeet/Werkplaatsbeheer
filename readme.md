@@ -15,7 +15,7 @@
 1. Clone the repository:
 ```bash
 git clone <repository-url>
-cd summa-techtrack
+cd werkplaatsbeheer
 ```
 
 2. Copy the environment file:
@@ -45,14 +45,14 @@ php artisan key:generate
 DB_CONNECTION=mysql
 DB_HOST=127.0.0.1
 DB_PORT=3306
-DB_DATABASE=summa-techtrack
-DB_USERNAME=root
-DB_PASSWORD=
+DB_DATABASE=werkplaatsbeheer
+DB_USERNAME=herd
+DB_PASSWORD=herd
 ```
 
 **Application URL (for Laravel Herd):**
 ```env
-APP_URL=http://summa-techtrack.test
+APP_URL=http://werkplaatsbeheer.test
 ```
 
 **Cache & Sessions:**
@@ -110,7 +110,7 @@ npm run build
 This application is served using Laravel Herd. Once Herd is installed and the project is linked, the site will be automatically available at:
 
 ```
-http://summa-techtrack.test
+https://werkplaatsbeheer.test
 ```
 
 No additional server configuration is needed.
